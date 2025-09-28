@@ -24,6 +24,9 @@ const startServer = async () => {
     const app = express();
     const httpServer = createServer(app);
 
+    // --- CORS Configuration ---
+    // IMPORTANT: For your frontend to be able to communicate with this backend,
+    // its exact URL MUST be included in this `allowedOrigins` list.
     const allowedOrigins = [
       'https://tribe-8i1h.vercel.app', // Your Production Frontend
       'https://tribals.vercel.app',    // Old Production Frontend

@@ -25,9 +25,10 @@ const startServer = async () => {
     const httpServer = createServer(app);
 
     const allowedOrigins = [
-      'https://tribals.vercel.app', // Production Frontend
-      'http://localhost:5173',      // Local Vite Frontend
-      'http://localhost:3000'       // Local CRA Frontend
+      'https://tribe-8i1h.vercel.app', // Your Production Frontend
+      'https://tribals.vercel.app',    // Old Production Frontend
+      'http://localhost:5173',         // Local Vite Frontend
+      'http://localhost:3000'          // Local CRA Frontend
     ];
 
     const corsOptions = {

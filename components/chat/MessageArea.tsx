@@ -147,7 +147,7 @@
 //                   <p>This is the beginning of your conversation with {otherParticipant.name}.</p>
 //               </div>
 //            )}
-//            {isSending && otherParticipant.id !== 'ember-ai' && (
+//            {isSending && otherParticipant.id !== 'chuk-ai' && (
 //              <div className="flex justify-end">
 //                 <p className="text-xs text-secondary mt-1.5 px-1 italic">Sending...</p>
 //              </div>
@@ -176,6 +176,10 @@
 
 // const SendIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>;
 // const BackIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>;
+
+
+
+
 
 
 
@@ -213,7 +217,9 @@ export const MessageArea: React.FC<MessageAreaProps> = ({ conversation, messages
   }, [messages]);
 
   useEffect(() => {
-    if (!socket) return;
+    if (!socket || !otherParticipantId || otherParticipantId === 'chuk-ai') return;
+    const roomName = `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`;
+    
     const handleTyping = ({ userId }: { userId: string }) => {
       if (userId === otherParticipantId) {
         setIsTyping(true);
@@ -224,24 +230,31 @@ export const MessageArea: React.FC<MessageAreaProps> = ({ conversation, messages
         setIsTyping(false);
       }
     };
+    
     socket.on('userTyping', handleTyping);
     socket.on('userStoppedTyping', handleStopTyping);
 
     return () => {
       socket.off('userTyping', handleTyping);
       socket.off('userStoppedTyping', handleStopTyping);
+      // Clean up typing state on component unmount
+      if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+          socket.emit('stopTyping', { roomId: roomName, userId: currentUser.id });
+      }
     };
-  }, [socket, otherParticipantId]);
+  }, [socket, otherParticipantId, currentUser.id]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputText(e.target.value);
-    if (socket && otherParticipantId) {
+    if (socket && otherParticipantId && otherParticipantId !== 'chuk-ai') {
+      const roomName = `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`;
       if (!typingTimeoutRef.current) {
-        socket.emit('typing', { roomId: `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`, userId: currentUser.id });
+        socket.emit('typing', { roomId: roomName, userId: currentUser.id });
       }
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
-        socket.emit('stopTyping', { roomId: `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`, userId: currentUser.id });
+        socket.emit('stopTyping', { roomId: roomName, userId: currentUser.id });
         typingTimeoutRef.current = null;
       }, 2000);
     }
@@ -252,9 +265,10 @@ export const MessageArea: React.FC<MessageAreaProps> = ({ conversation, messages
     if (inputText.trim()) {
       onSendMessage(inputText);
       setInputText('');
-      if (socket && otherParticipantId) {
+      if (socket && otherParticipantId && otherParticipantId !== 'chuk-ai') {
+        const roomName = `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`;
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-        socket.emit('stopTyping', { roomId: `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`, userId: currentUser.id });
+        socket.emit('stopTyping', { roomId: roomName, userId: currentUser.id });
         typingTimeoutRef.current = null;
       }
     }
@@ -307,7 +321,7 @@ export const MessageArea: React.FC<MessageAreaProps> = ({ conversation, messages
             return (
               <div key={message.id} className={`flex items-end gap-2.5 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
                 {!isCurrentUser && (
-                    <div className="w-8 h-8 rounded-full flex-shrink-0 self-start">
+                    <div className="w-8 h-8 rounded-full flex-shrink-0 self-start" onClick={() => sender && onViewProfile(sender)}>
                       <UserAvatar user={sender || null} />
                     </div>
                 )}

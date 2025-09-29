@@ -1,200 +1,107 @@
+# Tribe - Full-Stack Real-Time Social Media App
 
-# Tribe Full-Stack Real-Time Application - Developer Guide
-
-Welcome to the upgraded Tribe application! This guide provides everything you need to set up, run, and develop this feature-rich, real-time social media platform.
-
----
-### **1. Project Overview & Architecture**
----
-
-This project is a complete MERN-stack (MongoDB, Express, React, Node.js) application with an integrated real-time layer using **Socket.IO**.
-
-*   **Frontend:** A dynamic, single-page application built with React and TailwindCSS, located in the root directory. It connects to the backend via a REST API for initial data and a WebSocket connection for all subsequent real-time updates.
-*   **Backend:** A robust API built with Node.js and Express, located in the `/backend` directory. It handles business logic, database interactions, authentication, and manages all real-time communication through Socket.IO.
-*   **Database:** A NoSQL database powered by MongoDB, with schemas managed by Mongoose.
-*   **Real-Time Layer:** Socket.IO is used for instantaneous, bi-directional communication, powering live chats, notifications, and dynamic feed updates without page reloads.
+Welcome to the Tribe application! This is a complete MERN-stack (MongoDB, Express, React, Node.js) application with an integrated real-time layer using Socket.IO for live chats, notifications, and feed updates.
 
 ---
-### **2. Backend Setup**
+
+## Architecture Overview
+
+-   **Frontend:** A dynamic, single-page application built with **React** and **TailwindCSS**. It's located in the project's root directory.
+-   **Backend:** A robust API built with **Node.js** and **Express**, located in the `/backend` directory. It handles all business logic, database interactions, and real-time communication.
+-   **Database:** A NoSQL database powered by **MongoDB Atlas**.
+-   **Real-Time Layer:** **Socket.IO** enables instantaneous, bi-directional communication for all live features.
+
 ---
 
-Your backend code is in the `/backend` directory. Follow these steps precisely.
+## Local Development Setup
 
-**Step 1: Install Dependencies**
-Navigate to the backend directory and install its dependencies.
+Follow these steps to run the entire application on your local machine. A more detailed guide can be found in `DEVELOP.txt`.
+
+### 1. Backend Setup
+
+First, navigate into the backend directory and set it up.
 
 ```bash
 # Navigate to the backend directory
 cd backend
 
-# Install backend dependencies
+# Install all required dependencies
 npm install
 ```
 
-**Step 2: Configure Environment Variables**
-This is the most important step for connecting your services.
+Next, configure your environment variables.
 
-1.  In the `/backend` directory, create a new file named `.env`.
-2.  Copy the following content into your new `.env` file and fill in your details:
+1.  Create a new file named `.env` inside the `/backend` directory.
+2.  Copy the contents of `.env.example` (if it exists) or the following block into your new `.env` file:
 
 ```env
 # Server Configuration
 PORT=5001
 
-# MongoDB Database Connection String (from MongoDB Atlas)
+# MongoDB Database Connection String (get this from MongoDB Atlas)
 MONGO_URI=your_mongodb_connection_string_goes_here
 
 # JSON Web Token (JWT) Secret for Authentication
 JWT_SECRET=replace_this_with_a_very_long_and_secure_random_string
 
-# Google Gemini API Key (for the Ember AI feature)
+# Google Gemini API Key (for the Chuk AI feature)
 API_KEY=your_google_gemini_api_key_goes_here
 ```
 
-*   **`MONGO_URI`**: The connection string for your database. See the next section for instructions.
-*   **`JWT_SECRET`**: A secret key for signing auth tokens. Make this a long, random, and unguessable string.
-*   **`API_KEY`**: Your API key from Google AI Studio to power the "Ember AI" chat feature. The frontend expects this to be available as an environment variable in its execution context.
-
-**Step 3: Start the Backend Server**
-From the `/backend` directory, run:
+3.  **Get your `MONGO_URI`** from [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) by creating a free account and a free-tier cluster. **Remember to whitelist all IP addresses (0.0.0.0/0) for local development.**
+4.  Run the backend server:
 
 ```bash
+# From the /backend directory
 npm run server
 ```
 
-If successful, you'll see messages like `Server running on port 5001` and `MongoDB Connected`. Your API and WebSocket server are now live.
+Your backend API and WebSocket server will now be running at `http://localhost:5001`.
+
+### 2. Frontend Setup
+
+The frontend is designed to run without a local build step.
+
+1.  Make sure your backend is running.
+2.  Open the `index.html` file in your browser, preferably using a local server extension like VS Code's **"Live Server"**.
+
+The frontend will automatically connect to your local backend.
 
 ---
-### **3. Setting Up a FREE Cloud Database (MongoDB Atlas)**
----
 
-Your backend needs a database. MongoDB Atlas offers a generous free tier perfect for this project.
+## Deployment Guide (Production)
 
-1.  **Create Account:** Go to `https://www.mongodb.com/cloud/atlas` and sign up.
-2.  **Create a Free Cluster:** Follow the on-screen instructions to create a new "M0 Sandbox" cluster.
-3.  **Create a Database User:**
-    *   Go to "Database Access" -> "Add New Database User".
-    *   Create a username and a **secure password**. **SAVE THIS PASSWORD!**
-    *   Grant the user "Read and write to any database" privileges.
-4.  **Whitelist Your IP Address:**
-    *   Go to "Network Access" -> "Add IP Address".
-    *   For development, click "Allow Access from Anywhere" (`0.0.0.0/0`).
-5.  **Get Your Connection String:**
-    *   Go to "Database", click "Connect" for your cluster, and choose "Connect your application".
-    *   Copy the connection string.
-6.  **Update Your `.env` File:**
-    *   Paste the connection string into your `/backend/.env` file for the `MONGO_URI` variable.
-    *   **Crucially, replace `<password>` with the actual database user password you created.**
+This application requires a two-part deployment: the backend on a server platform and the frontend on a static hosting platform.
 
-**Restart your backend server (`npm run server`) after updating the `.env` file.**
+### Step 1: Deploy the Backend to Render
 
----
-### **4. Backend API & Socket Events**
----
+Render is an excellent choice for hosting Node.js servers.
 
-The backend exposes a RESTful API for data operations and a set of Socket.IO events for real-time communication.
+1.  Push your entire project to a GitHub repository.
+2.  Create a new **"Web Service"** on Render and connect it to your GitHub repo.
+3.  Configure the service with the following settings:
+    -   **Root Directory:** `backend` (This tells Render to only use the backend folder).
+    -   **Build Command:** `npm install`
+    -   **Start Command:** `npm start`
+4.  Go to the **"Environment"** tab for your new service and add the same environment variables from your local `.env` file (`MONGO_URI`, `JWT_SECRET`, `API_KEY`).
+5.  Deploy. Render will give you a public URL (e.g., `https://tribe-backend-xyz.onrender.com`). **Copy this URL.**
 
-#### **Models:**
-*   `User`: Stores user information, credentials, and social graph (followers, etc.).
-*   `Post`: Stores post content, images, likes, and comments.
-*   `Tribe`: Stores group information, owner, and members.
-*   `TribeMessage`: Stores messages sent within a tribe's chat.
-*   `Message`: Stores direct messages between two users.
-*   `Notification`: Stores records of user interactions like follows, likes, and comments.
+### Step 2: Deploy the Frontend to Vercel
 
-#### **API Routes:**
-All routes are prefixed with `/api`. Protected routes require a valid JWT.
+Vercel is the best platform for hosting your React frontend.
 
-*   **Authentication (`/auth`)**
-    *   `POST /register`: Creates a new user.
-    *   `POST /login`: Authenticates a user and returns a JWT and user profile.
+1.  In your project's code, open the `api/config.ts` file.
+2.  **Replace the placeholder URL** with the public URL you copied from your Render backend service.
 
-*   **Users (`/users`)**
-    *   `GET /`: Get all users.
-    *   `GET /:id`: Get a specific user's profile.
-    *   `PUT /profile`: Update the logged-in user's profile.
-    *   `DELETE /profile`: Delete the logged-in user's account.
-    *   `PUT /:id/follow`: Follow or unfollow another user.
-    *   `PUT /:id/block`: Block or unblock another user.
-
-*   **Posts (`/posts`)**
-    *   `GET /`: Get all posts for the discover feed.
-    *   `GET /feed`: Get posts for the user's home feed (people they follow).
-    *   `POST /`: Create a new post.
-    *   `DELETE /:id`: Delete a post.
-    *   `PUT /:id/like`: Like or unlike a post.
-    *   `POST /:id/comments`: Add a comment to a post.
-    *   `DELETE /:id/comments/:comment_id`: Delete a comment.
-
-*   **Tribes (`/tribes`)**
-    *   `GET /`: Get a list of all tribes.
-    *   `POST /`: Create a new tribe.
-    *   `PUT /:id`: Update a tribe's details.
-    *   `DELETE /:id`: Delete a tribe (owner only).
-    *   `PUT /:id/join`: Join or leave a tribe.
-    *   `GET /:id/messages`: Get all messages for a tribe chat.
-    *   `POST /:id/messages`: Send a message in a tribe chat.
-    *   `DELETE /:id/messages/:messageId`: Delete a message in a tribe (sender only).
-
-*   **Direct Messages (`/messages`)**
-    *   `GET /conversations`: Get the list of active conversations.
-    *   `GET /:userToChatId`: Get the message history with another user.
-    *   `POST /send/:receiverId`: Send a direct message.
-
-*   **Notifications (`/notifications`)**
-    *   `GET /`: Get all notifications for the logged-in user.
-    *   `PUT /read`: Mark all notifications as read.
-
-#### **Socket.IO Events:**
-*   **Client Emits:**
-    *   `joinRoom(roomName)`: To subscribe to updates (e.g., `tribe-tribeId`, `dm-userId1-userId2`).
-    *   `leaveRoom(roomName)`: To unsubscribe from updates.
-    *   `typing({ roomId, ... })`: Sent when a user starts typing.
-    *   `stopTyping({ roomId, ... })`: Sent when a user stops typing.
-
-*   **Server Emits:**
-    *   `getOnlineUsers(userIds)`: Broadcasts the list of online user IDs.
-    *   `newMessage(messageObject)`: Sends a new direct message to the relevant room.
-    *   `newTribeMessage(messageObject)`: Sends a new tribe message to the relevant tribe room.
-    *   `tribeMessageDeleted({ tribeId, messageId })`: Informs clients to remove a deleted tribe message.
-    *   `newPost(postObject)`: Broadcasts a newly created post.
-    *   `postUpdated(postObject)`: Broadcasts an updated post (e.g., new like or comment).
-    *   `postDeleted(postId)`: Informs clients to remove a deleted post.
-    *   `userUpdated(userObject)`: Broadcasts updated user profiles (e.g., new follower, block status change).
-    *   `tribeDeleted(tribeId)`: Informs clients to remove a deleted tribe.
-    *   `newNotification(notificationObject)`: Sends a new notification directly to a user.
-    *   `userTyping({ ... })` / `userStoppedTyping({ ... })`: Relays typing status to users in a room.
-
----
-### **5. Running the Full Application Locally**
----
-
-1.  Open two terminal windows.
-2.  **Terminal 1 (Backend):**
-    ```bash
-    cd backend
-    npm run server
+    ```typescript
+    // api/config.ts
+    // For production, this should be your live backend URL
+    export const API_URL = 'https://tribe-backend-xyz.onrender.com'; 
     ```
-3.  **Terminal 2 (Frontend):**
-    *   The frontend is configured to run without a local build step. Open the `index.html` file in your browser, preferably through a local server extension like VS Code's "Live Server".
 
-The frontend is configured to send API requests and establish a WebSocket connection to the backend server.
+3.  Commit and push this change to GitHub.
+4.  Create a new project on Vercel and connect it to the same GitHub repository.
+5.  Vercel will automatically detect the React frontend and configure the build settings. There is no need to set a root directory.
+6.  Deploy.
 
----
-### **6. Deployment**
----
-
-Deploying a MERN app with WebSockets involves two main parts.
-
-**1. Backend Deployment (e.g., on Render):**
-*   Platforms like Render are excellent for Node.js apps.
-*   Push your code to a Git repository (GitHub).
-*   Create a new "Web Service" on Render and connect it to your repository.
-*   **Crucially, you must add your environment variables (`MONGO_URI`, `JWT_SECRET`, `API_KEY`) in the Render dashboard's "Environment" section.**
-*   Your API will be live at a URL like `https://your-app-name.onrender.com`.
-
-**2. Frontend Deployment (e.g., on Vercel, Netlify):**
-*   Push your code to a Git repository.
-*   Connect your Git repository to Vercel.
-*   **Important:** In `src/api/config.ts`, you must update the `API_URL` from your local host to your live backend URL (e.g., `https://your-app-name.onrender.com`).
-*   Deploy. Your application is now live!
+Your application is now live! The Vercel frontend will make API calls to your Render backend.

@@ -1,3 +1,6 @@
+
+
+
 // // import React, { useState, useEffect, useCallback, useMemo } from 'react';
 // // import { Conversation, User, Message, Post } from '../../types';
 // // import ConversationList from './ConversationList';
@@ -209,7 +212,7 @@
 // //   };
   
 // //   return (
-// //     <div className="h-[calc(100vh-10rem)] md:h-[calc(100vh-5rem)] bg-surface rounded-2xl border border-border shadow-md flex overflow-hidden">
+// //     <div className="h-full bg-surface rounded-2xl border border-border shadow-md flex overflow-hidden">
 // //        <div 
 // //         className={`w-full md:w-[320px] lg:w-[380px] flex-shrink-0 flex flex-col transition-transform duration-300 ease-in-out md:static absolute inset-0 z-10 border-r border-border ${
 // //           isMessageAreaVisible ? '-translate-x-full' : 'translate-x-0'
@@ -274,6 +277,8 @@
 
 
 
+
+
 // import React, { useState, useEffect, useCallback, useMemo } from 'react';
 // import { Conversation, User, Message, Post } from '../../types';
 // import ConversationList from './ConversationList';
@@ -285,13 +290,13 @@
 // interface ChatPageProps {
 //   currentUser: User;
 //   allUsers: User[];
-//   emberUser: User;
+//   chukUser: User;
 //   initialTargetUser: User | null;
 //   onViewProfile: (user: User) => void;
 //   onSharePost: (post: Post, destination: { type: 'tribe' | 'user', id: string }) => void;
 // }
 
-// const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, emberUser, initialTargetUser, onViewProfile }) => {
+// const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, chukUser, initialTargetUser, onViewProfile }) => {
 //   const [conversations, setConversations] = useState<Conversation[]>([]);
 //   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
 //   const [messages, setMessages] = useState<Message[]>([]);
@@ -302,9 +307,9 @@
 
 //   const userMap = useMemo(() => {
 //       const map = new Map(allUsers.map(user => [user.id, user]));
-//       map.set(emberUser.id, emberUser);
+//       map.set(chukUser.id, chukUser);
 //       return map;
-//   }, [allUsers, emberUser]);
+//   }, [allUsers, chukUser]);
 
 //   const fetchConversations = useCallback(async () => {
 //       try {
@@ -326,7 +331,8 @@
 //     if (!socket) return;
     
 //     const handleNewMessage = (message: Message) => {
-//         const isActiveConversation = (activeConversation?.participants.some(p => p.id === message.senderId) && activeConversation?.participants.some(p => p.id === message.receiverId));
+//         const otherUserId = message.senderId === currentUser.id ? message.receiverId : message.senderId;
+//         const isActiveConversation = activeConversation?.participants.some(p => p.id === otherUserId);
 
 //         if (isActiveConversation) {
 //             setMessages(prev => [...prev, message]);
@@ -334,7 +340,6 @@
         
 //         // Update conversation list without fetching
 //         setConversations(prev => {
-//             const otherUserId = message.senderId === currentUser.id ? message.receiverId : message.senderId;
 //             const convoIndex = prev.findIndex(c => c.participants.some(p => p.id === otherUserId));
             
 //             if (convoIndex > -1) {
@@ -345,7 +350,7 @@
 //             } else {
 //                 // This case handles receiving a message from a user you haven't chatted with before
 //                 const newConvo = {
-//                     id: `conv-${otherUserId}`, // Temporary ID, will be updated on next fetch
+//                     id: `conv-${otherUserId}`, // Will be updated on next fetch
 //                     participants: [{ id: currentUser.id }, { id: otherUserId }],
 //                     lastMessage: message.text,
 //                     timestamp: message.timestamp,
@@ -373,9 +378,9 @@
 //     clearUnreadMessages(otherUserId);
 //     socket?.emit('joinRoom', `dm-${[currentUser.id, otherUserId].sort().join('-')}`);
 
-//     if (otherUserId === emberUser.id) {
+//     if (otherUserId === chukUser.id) {
 //         setMessages([
-//             { id: 'ember-intro', senderId: emberUser.id, receiverId: currentUser.id, text: `Hi ${currentUser.name.split(' ')[0]}! I'm Ember, your fiery AI guide. Got questions? Ask away 🔥`, timestamp: new Date().toISOString() }
+//             { id: 'chuk-intro', senderId: chukUser.id, receiverId: currentUser.id, text: `Hi ${currentUser.name.split(' ')[0]}! I'm Chuk, your new best friend at Tribe! What's on your mind? 🐣`, timestamp: new Date().toISOString() }
 //         ]);
 //         setMessageAreaVisible(true);
 //         return;
@@ -389,11 +394,12 @@
 //         console.error("Failed to fetch messages", error);
 //         setMessages([]);
 //     }
-//   }, [currentUser.id, currentUser.name, emberUser.id, socket, clearUnreadMessages]);
+//   }, [currentUser.id, currentUser.name, chukUser.id, socket, clearUnreadMessages]);
   
 //   const handleStartNewConversation = useCallback((targetUser: User) => {
-//     if (targetUser.id === emberUser.id) {
-//         handleSelectConversation({ id: emberUser.id, participants: [{id: currentUser.id}, {id: emberUser.id}], lastMessage: "AI Assistant", timestamp: new Date().toISOString(), messages: [] });
+//     setNewMessageModalOpen(false);
+//     if (targetUser.id === chukUser.id) {
+//         handleSelectConversation({ id: chukUser.id, participants: [{id: currentUser.id}, {id: chukUser.id}], lastMessage: "AI Assistant", timestamp: new Date().toISOString(), messages: [] });
 //         return;
 //     }
 
@@ -413,11 +419,14 @@
 //       setMessageAreaVisible(true);
 //       socket?.emit('joinRoom', `dm-${[currentUser.id, targetUser.id].sort().join('-')}`);
 //     }
-//   }, [conversations, currentUser.id, handleSelectConversation, emberUser.id, socket]);
+//   }, [conversations, currentUser.id, handleSelectConversation, chukUser.id, socket]);
   
 //   useEffect(() => {
 //     if (initialTargetUser) {
 //         handleStartNewConversation(initialTargetUser);
+//     } else {
+//         // If there's no initial target, make sure we're on the conversation list
+//         setMessageAreaVisible(false);
 //     }
 //   }, [initialTargetUser, handleStartNewConversation]);
 
@@ -443,6 +452,7 @@
 //         return;
 //     }
     
+//     // Optimistic update for UI
 //     const tempMessage: Message = { 
 //         id: `temp-${Date.now()}`, 
 //         senderId: currentUser.id, 
@@ -452,15 +462,16 @@
 //     };
 //     setMessages(prev => [...prev, tempMessage]);
 
-//     // Handle Ember AI chat
-//     if (otherUserId === emberUser.id) {
+//     // Handle Chuk AI chat
+//     if (otherUserId === chukUser.id) {
 //         try {
 //             const { data } = await api.generateAiChat({ prompt: text });
-//             const emberResponse: Message = { id: `ember-${Date.now()}`, senderId: emberUser.id, receiverId: currentUser.id, text: data.text, timestamp: new Date().toISOString() };
-//             setMessages(prev => [...prev.filter(m => m.id !== tempMessage.id), tempMessage, emberResponse]);
+//             const chukResponse: Message = { id: `chuk-${Date.now()}`, senderId: chukUser.id, receiverId: currentUser.id, text: data.text, timestamp: new Date().toISOString() };
+//             // Replace temp message with real one and add Chuk's response
+//             setMessages(prev => [...prev.filter(m => m.id !== tempMessage.id), tempMessage, chukResponse]);
 //         } catch (error) {
-//             console.error("Ember AI Error:", error);
-//             const errorMessage: Message = { id: `ember-err-${Date.now()}`, senderId: emberUser.id, receiverId: currentUser.id, text: "Sorry, I'm having a little trouble thinking right now. Please try again in a moment.", timestamp: new Date().toISOString() };
+//             console.error("Chuk AI Error:", error);
+//             const errorMessage: Message = { id: `chuk-err-${Date.now()}`, senderId: chukUser.id, receiverId: currentUser.id, text: "Chirp chirp... I'm having a little trouble thinking right now. Please try again in a moment! 🐣", timestamp: new Date().toISOString() };
 //             setMessages(prev => [...prev.filter(m => m.id !== tempMessage.id), tempMessage, errorMessage]);
 //         } finally {
 //             setIsSending(false);
@@ -472,12 +483,14 @@
 //     try {
 //         await api.sendMessage(otherUserId, { message: text });
 //         if(activeConversation.id.startsWith('temp-')){
+//             // If it was a new conversation, fetch the updated list to get the real ID
 //             const newConversations = await fetchConversations();
 //             const newConvo = newConversations.find((c: Conversation) => c.participants.some(p => p.id === otherUserId));
 //             if (newConvo) setActiveConversation(newConvo);
 //         }
 //     } catch (error) {
 //         console.error("Failed to send message", error);
+//         // Revert optimistic update on failure
 //         setMessages(prev => prev.filter(m => m.id !== tempMessage.id));
 //     } finally {
 //         setIsSending(false);
@@ -485,7 +498,7 @@
 //   };
   
 //   return (
-//     <div className="h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)] bg-surface rounded-2xl border border-border shadow-md flex overflow-hidden">
+//     <div className="h-full bg-surface rounded-2xl border border-border shadow-md flex overflow-hidden relative">
 //        <div 
 //         className={`w-full md:w-[320px] lg:w-[380px] flex-shrink-0 flex flex-col transition-transform duration-300 ease-in-out md:static absolute inset-0 z-10 border-r border-border ${
 //           isMessageAreaVisible ? '-translate-x-full' : 'translate-x-0'
@@ -494,7 +507,7 @@
 //         <ConversationList
 //             conversations={conversations}
 //             currentUser={currentUser}
-//             emberUser={emberUser}
+//             chukUser={chukUser}
 //             userMap={userMap}
 //             activeConversationId={activeConversation?.id}
 //             onSelectConversation={handleSelectConversation}
@@ -533,10 +546,7 @@
 //            <NewMessageModal 
 //                 allUsers={allUsers.filter(u => u.id !== currentUser.id)}
 //                 onClose={() => setNewMessageModalOpen(false)}
-//                 onUserSelect={(user) => {
-//                     setNewMessageModalOpen(false);
-//                     handleStartNewConversation(user);
-//                 }}
+//                 onUserSelect={handleStartNewConversation}
 //            />
 //        )}
 //     </div>
@@ -544,6 +554,13 @@
 // };
 
 // export default ChatPage;
+
+
+
+
+
+
+
 
 
 
@@ -558,35 +575,45 @@ import { useSocket } from '../../contexts/SocketContext';
 interface ChatPageProps {
   currentUser: User;
   allUsers: User[];
-  emberUser: User;
+  chukUser: User;
   initialTargetUser: User | null;
   onViewProfile: (user: User) => void;
   onSharePost: (post: Post, destination: { type: 'tribe' | 'user', id: string }) => void;
 }
 
-const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, emberUser, initialTargetUser, onViewProfile }) => {
+const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, chukUser, initialTargetUser, onViewProfile }) => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isMessageAreaVisible, setMessageAreaVisible] = useState(false);
   const [isNewMessageModalOpen, setNewMessageModalOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const { socket, onlineUsers, clearUnreadMessages } = useSocket();
 
   const userMap = useMemo(() => {
       const map = new Map(allUsers.map(user => [user.id, user]));
-      map.set(emberUser.id, emberUser);
+      map.set(chukUser.id, chukUser);
       return map;
-  }, [allUsers, emberUser]);
+  }, [allUsers, chukUser]);
 
   const fetchConversations = useCallback(async () => {
+      setIsLoading(true);
       try {
         const { data } = await api.fetchConversations();
-        setConversations(data);
+        if (Array.isArray(data)) {
+          setConversations(data);
+        } else {
+          console.error("API response for conversations is not an array:", data);
+          setConversations([]);
+        }
         return data;
       } catch (error) {
         console.error("Failed to fetch conversations", error);
+        setConversations([]);
         return [];
+      } finally {
+        setIsLoading(false);
       }
   }, []);
 
@@ -599,7 +626,8 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, emberUser, i
     if (!socket) return;
     
     const handleNewMessage = (message: Message) => {
-        const isActiveConversation = (activeConversation?.participants.some(p => p.id === message.senderId) && activeConversation?.participants.some(p => p.id === message.receiverId));
+        const otherUserId = message.senderId === currentUser.id ? message.receiverId : message.senderId;
+        const isActiveConversation = activeConversation?.participants.some(p => p.id === otherUserId);
 
         if (isActiveConversation) {
             setMessages(prev => [...prev, message]);
@@ -607,7 +635,6 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, emberUser, i
         
         // Update conversation list without fetching
         setConversations(prev => {
-            const otherUserId = message.senderId === currentUser.id ? message.receiverId : message.senderId;
             const convoIndex = prev.findIndex(c => c.participants.some(p => p.id === otherUserId));
             
             if (convoIndex > -1) {
@@ -618,7 +645,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, emberUser, i
             } else {
                 // This case handles receiving a message from a user you haven't chatted with before
                 const newConvo = {
-                    id: `conv-${otherUserId}`, // Temporary ID, will be updated on next fetch
+                    id: `conv-${otherUserId}`, // Will be updated on next fetch
                     participants: [{ id: currentUser.id }, { id: otherUserId }],
                     lastMessage: message.text,
                     timestamp: message.timestamp,
@@ -646,9 +673,9 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, emberUser, i
     clearUnreadMessages(otherUserId);
     socket?.emit('joinRoom', `dm-${[currentUser.id, otherUserId].sort().join('-')}`);
 
-    if (otherUserId === emberUser.id) {
+    if (otherUserId === chukUser.id) {
         setMessages([
-            { id: 'ember-intro', senderId: emberUser.id, receiverId: currentUser.id, text: `Hi ${currentUser.name.split(' ')[0]}! I'm Ember, your fiery AI guide. Got questions? Ask away 🔥`, timestamp: new Date().toISOString() }
+            { id: 'chuk-intro', senderId: chukUser.id, receiverId: currentUser.id, text: `Hi ${currentUser.name.split(' ')[0]}! I'm Chuk, your new best friend at Tribe! What's on your mind? 🐣`, timestamp: new Date().toISOString() }
         ]);
         setMessageAreaVisible(true);
         return;
@@ -662,11 +689,12 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, emberUser, i
         console.error("Failed to fetch messages", error);
         setMessages([]);
     }
-  }, [currentUser.id, currentUser.name, emberUser.id, socket, clearUnreadMessages]);
+  }, [currentUser.id, currentUser.name, chukUser.id, socket, clearUnreadMessages]);
   
   const handleStartNewConversation = useCallback((targetUser: User) => {
-    if (targetUser.id === emberUser.id) {
-        handleSelectConversation({ id: emberUser.id, participants: [{id: currentUser.id}, {id: emberUser.id}], lastMessage: "AI Assistant", timestamp: new Date().toISOString(), messages: [] });
+    setNewMessageModalOpen(false);
+    if (targetUser.id === chukUser.id) {
+        handleSelectConversation({ id: chukUser.id, participants: [{id: currentUser.id}, {id: chukUser.id}], lastMessage: "AI Assistant", timestamp: new Date().toISOString(), messages: [] });
         return;
     }
 
@@ -686,11 +714,13 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, emberUser, i
       setMessageAreaVisible(true);
       socket?.emit('joinRoom', `dm-${[currentUser.id, targetUser.id].sort().join('-')}`);
     }
-  }, [conversations, currentUser.id, handleSelectConversation, emberUser.id, socket]);
+  }, [conversations, currentUser.id, handleSelectConversation, chukUser.id, socket]);
   
   useEffect(() => {
     if (initialTargetUser) {
         handleStartNewConversation(initialTargetUser);
+    } else {
+        setMessageAreaVisible(false);
     }
   }, [initialTargetUser, handleStartNewConversation]);
 
@@ -725,15 +755,14 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, emberUser, i
     };
     setMessages(prev => [...prev, tempMessage]);
 
-    // Handle Ember AI chat
-    if (otherUserId === emberUser.id) {
+    if (otherUserId === chukUser.id) {
         try {
             const { data } = await api.generateAiChat({ prompt: text });
-            const emberResponse: Message = { id: `ember-${Date.now()}`, senderId: emberUser.id, receiverId: currentUser.id, text: data.text, timestamp: new Date().toISOString() };
-            setMessages(prev => [...prev.filter(m => m.id !== tempMessage.id), tempMessage, emberResponse]);
+            const chukResponse: Message = { id: `chuk-${Date.now()}`, senderId: chukUser.id, receiverId: currentUser.id, text: data.text, timestamp: new Date().toISOString() };
+            setMessages(prev => [...prev.filter(m => m.id !== tempMessage.id), tempMessage, chukResponse]);
         } catch (error) {
-            console.error("Ember AI Error:", error);
-            const errorMessage: Message = { id: `ember-err-${Date.now()}`, senderId: emberUser.id, receiverId: currentUser.id, text: "Sorry, I'm having a little trouble thinking right now. Please try again in a moment.", timestamp: new Date().toISOString() };
+            console.error("Chuk AI Error:", error);
+            const errorMessage: Message = { id: `chuk-err-${Date.now()}`, senderId: chukUser.id, receiverId: currentUser.id, text: "Chirp chirp... I'm having a little trouble thinking right now. Please try again in a moment! 🐣", timestamp: new Date().toISOString() };
             setMessages(prev => [...prev.filter(m => m.id !== tempMessage.id), tempMessage, errorMessage]);
         } finally {
             setIsSending(false);
@@ -741,7 +770,6 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, emberUser, i
         return;
     }
 
-    // Handle regular user chat
     try {
         await api.sendMessage(otherUserId, { message: text });
         if(activeConversation.id.startsWith('temp-')){
@@ -758,7 +786,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, emberUser, i
   };
   
   return (
-    <div className="h-full bg-surface rounded-2xl border border-border shadow-md flex overflow-hidden">
+    <div className="h-full bg-surface rounded-2xl border border-border shadow-md flex overflow-hidden relative">
        <div 
         className={`w-full md:w-[320px] lg:w-[380px] flex-shrink-0 flex flex-col transition-transform duration-300 ease-in-out md:static absolute inset-0 z-10 border-r border-border ${
           isMessageAreaVisible ? '-translate-x-full' : 'translate-x-0'
@@ -766,8 +794,9 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, emberUser, i
       >
         <ConversationList
             conversations={conversations}
+            isLoading={isLoading}
             currentUser={currentUser}
-            emberUser={emberUser}
+            chukUser={chukUser}
             userMap={userMap}
             activeConversationId={activeConversation?.id}
             onSelectConversation={handleSelectConversation}
@@ -806,10 +835,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, emberUser, i
            <NewMessageModal 
                 allUsers={allUsers.filter(u => u.id !== currentUser.id)}
                 onClose={() => setNewMessageModalOpen(false)}
-                onUserSelect={(user) => {
-                    setNewMessageModalOpen(false);
-                    handleStartNewConversation(user);
-                }}
+                onUserSelect={handleStartNewConversation}
            />
        )}
     </div>

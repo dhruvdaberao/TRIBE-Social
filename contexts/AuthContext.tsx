@@ -97,8 +97,7 @@
 
 
 
-
-import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback, useMemo } from 'react';
 import { User } from '../types';
 import * as api from '../api';
 
@@ -123,7 +122,7 @@ const normalizeUser = (user: any): User | null => {
     };
 };
 
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -157,34 +156,34 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [currentUser]);
 
 
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     const { data } = await api.login({ email, password });
     localStorage.setItem('token', data.token);
     setCurrentUser(normalizeUser(data.user));
-  };
+  }, []);
 
-  const register = async (name: string, username: string, email: string, password: string) => {
+  const register = useCallback(async (name: string, username: string, email: string, password: string) => {
     const { data } = await api.register({ name, username, email, password });
     localStorage.setItem('token', data.token);
     setCurrentUser(normalizeUser(data.user));
-  };
+  }, []);
   
-  const logout = () => {
+  const logout = useCallback(() => {
     setCurrentUser(null);
     localStorage.removeItem('token');
     localStorage.removeItem('currentUser');
     // Optional: force a full page reload to clear all state
     window.location.href = '/';
-  };
+  }, []);
 
-  const value = {
+  const value = useMemo(() => ({
       currentUser,
       setCurrentUser,
       login,
       register,
       logout,
       isLoading
-  };
+  }), [currentUser, isLoading, login, register, logout]);
 
   return (
     <AuthContext.Provider value={value}>
@@ -199,4 +198,4 @@ export const useAuth = () => {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-};
+};i

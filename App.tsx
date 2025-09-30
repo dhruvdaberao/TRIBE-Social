@@ -2,9 +2,6 @@
 
 
 
-
-
-
 // import React, { useState, useEffect, useMemo, useCallback } from 'react';
 // import { useAuth } from './contexts/AuthContext';
 // import { useSocket } from './contexts/SocketContext';
@@ -341,6 +338,16 @@
 //             toast.error("Could not share post. Please try again.");
 //         }
 //     };
+    
+//     const handleViewPost = (postId: string) => {
+//         const post = posts.find(p => p.id === postId);
+//         if (post) {
+//             handleViewProfile(post.author);
+//             // Future improvement: scroll to the post on the profile page.
+//         } else {
+//             toast.info("Could not find the post. It may have been deleted.");
+//         }
+//     };
 
 //     // --- User Handlers ---
 //     const handleUpdateUser = async (updatedUserData: Partial<User>) => {
@@ -478,14 +485,13 @@
 //     }
 
 //     const handleDeleteTribe = async (tribeId: string) => {
-//         if (window.confirm("Are you sure you want to delete this tribe? This is irreversible.")) {
-//             try {
-//                 // API call triggers 'tribeDeleted' socket event
-//                 await api.deleteTribe(tribeId);
-//             } catch (error) {
-//                 console.error("Failed to delete tribe", error);
-//                 toast.error("Could not delete tribe.");
-//             }
+//         try {
+//             // API call triggers 'tribeDeleted' socket event
+//             await api.deleteTribe(tribeId);
+//             setEditingTribe(null); // Close the modal on success
+//         } catch (error) {
+//             console.error("Failed to delete tribe", error);
+//             toast.error("Could not delete tribe.");
 //         }
 //     }
 
@@ -589,7 +595,6 @@
 //                     currentUser={currentUser}
 //                     onSendMessage={handleSendTribeMessage}
 //                     onDeleteMessage={handleDeleteTribeMessage}
-//                     onDeleteTribe={handleDeleteTribe}
 //                     onBack={() => setActiveNavItem('Tribes')}
 //                     onViewProfile={handleViewProfile}
 //                     onEditTribe={(tribe) => setEditingTribe(tribe)}
@@ -600,6 +605,7 @@
 //                     notifications={notifications} 
 //                     onViewProfile={handleViewProfile}
 //                     onViewMessage={handleStartConversation}
+//                     onViewPost={handleViewPost}
 //                 />;
 //             case 'Profile':
 //                 if (!viewedUser || currentUser.blockedUsers.includes(viewedUser.id) || viewedUser.blockedUsers?.includes(currentUser.id)) {
@@ -655,6 +661,7 @@
 //                 tribe={editingTribe}
 //                 onClose={() => setEditingTribe(null)}
 //                 onSave={handleEditTribe}
+//                 onDelete={handleDeleteTribe}
 //               />
 //             )}
 //         </div>
@@ -662,6 +669,9 @@
 // };
 
 // export default App;
+
+
+
 
 
 
@@ -676,7 +686,7 @@ import * as api from './api';
 // Components
 import Sidebar from './components/layout/Sidebar';
 import FeedPage from './components/feed/FeedPage';
-import ProfilePage from './components/profile/ProfilePage';
+import { ProfilePage } from './components/profile/ProfilePage';
 import ChatPage from './components/chat/ChatPage';
 import DiscoverPage from './components/discover/DiscoverPage';
 import LoginPage from './components/auth/LoginPage';
@@ -726,16 +736,27 @@ const App: React.FC = () => {
         return map;
     }, [users]);
 
-    const populatePost = useCallback((post: any, userMapToUse: Map<string, User>): Post | null => {
-        const author = userMapToUse.get(post.user);
-        if (!author) return null;
+    const populatePost = useCallback((postFromApi: any, userMapToUse: Map<string, User>): Post | null => {
+        // The backend sends a populated 'user' object. We rename it to 'author' for the frontend.
+        const { user: author, ...restOfPost } = postFromApi;
+        
+        if (!author || typeof author !== 'object') {
+            console.warn("Post with invalid author found and filtered:", postFromApi);
+            return null;
+        }
+
         return {
-            ...post,
+            ...restOfPost,
             author,
-            comments: post.comments ? post.comments.map((comment: any) => ({
-                ...comment,
-                author: userMapToUse.get(comment.user),
-            })).filter((c: any) => c.author) : [],
+            comments: restOfPost.comments ? restOfPost.comments.map((comment: any) => {
+                // The backend now sends a populated 'user' object inside the comment.
+                // We rename it to 'author' for frontend consistency.
+                const { user, ...restOfComment } = comment;
+                return {
+                    ...restOfComment,
+                    author: user,
+                };
+            }).filter((c: any) => c.author && typeof c.author === 'object') : [], // Filter out comments from deleted/unknown users
         };
     }, []);
 
@@ -744,6 +765,7 @@ const App: React.FC = () => {
             setIsInitialLoading(false);
             return;
         }
+        setIsInitialLoading(true);
         try {
             const [usersData, feedPostsData, tribesData, notificationsData] = await Promise.all([
                 api.fetchUsers(),
@@ -752,8 +774,10 @@ const App: React.FC = () => {
                 api.fetchNotifications(),
             ]);
 
-            setUsers(usersData.data);
-            const localUserMap = new Map<string, User>(usersData.data.map((user: User) => [user.id, user]));
+            const allUsers = usersData.data;
+            setUsers(allUsers);
+            const localUserMap = new Map<string, User>(allUsers.map((user: User) => [user.id, user]));
+            localUserMap.set(CHUK_AI_USER.id, CHUK_AI_USER);
 
             const populatedPosts = feedPostsData.data.map((post: any) => populatePost(post, localUserMap)).filter(Boolean);
             
@@ -768,7 +792,8 @@ const App: React.FC = () => {
             setNotifications(notificationsData.data);
 
         } catch (error) {
-            console.error("Failed to fetch initial data:", error);
+            console.error("Failed to fetch initial data: ", error);
+            toast.error("Could not load data. Please try refreshing.");
             if ((error as any)?.response?.status === 401) {
                 logout();
             }
@@ -806,7 +831,7 @@ const App: React.FC = () => {
 
         const handleNewPost = (post: any) => {
              // Avoid adding a duplicate if we just added it manually via API response
-            if (post.user === currentUser?.id && isCreatingPost) return;
+            if (post.user.id === currentUser?.id && isCreatingPost) return;
             const populated = populatePost(post, userMap);
             if (populated) setPosts(prev => [populated, ...prev].sort((a: Post, b: Post) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
         };
@@ -1260,6 +1285,8 @@ const App: React.FC = () => {
                     currentUser={currentUser}
                     onSendMessage={handleSendTribeMessage}
                     onDeleteMessage={handleDeleteTribeMessage}
+                    // FIX: Passed the required onDeleteTribe prop to the TribeDetailPage component.
+                    onDeleteTribe={handleDeleteTribe}
                     onBack={() => setActiveNavItem('Tribes')}
                     onViewProfile={handleViewProfile}
                     onEditTribe={(tribe) => setEditingTribe(tribe)}
@@ -1279,7 +1306,8 @@ const App: React.FC = () => {
                 const userPosts = visiblePosts.filter(p => p.author.id === viewedUser.id);
                 return <ProfilePage
                     user={viewedUser}
-                    allUsers={visibleUsers}
+                    allUsers={users}
+                    visibleUsers={visibleUsers}
                     allTribes={tribes}
                     posts={userPosts}
                     currentUser={currentUser}
@@ -1316,7 +1344,7 @@ const App: React.FC = () => {
             <main className="pt-16 pb-16 md:pb-0">
                 <div className={isFullHeightPage 
                     ? 'h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)] md:pl-0' 
-                    : 'max-w-2xl mx-auto px-4 md:px-6 pt-6'
+                    : 'max-w-2xl mx-auto px-4 md:px-6 pt-6 pb-24 md:pb-8'
                 }>
                     {renderContent()}
                 </div>

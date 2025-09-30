@@ -121,8 +121,6 @@
 
 
 
-
-
 import React, { useState, useRef } from 'react';
 import { Tribe } from '../../types';
 
@@ -169,12 +167,12 @@ const EditTribeModal: React.FC<EditTribeModalProps> = ({ tribe, onClose, onSave,
             onClose();
         }
     };
-    
-    const handleDeleteClick = () => {
-        if (window.confirm("Are you sure you want to delete this tribe? This is irreversible.")) {
+
+    const handleDelete = () => {
+        if (window.confirm('Are you sure you want to delete this tribe? This is irreversible.')) {
             onDelete(tribe.id);
         }
-    }
+    };
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -231,10 +229,16 @@ const EditTribeModal: React.FC<EditTribeModalProps> = ({ tribe, onClose, onSave,
                     </div>
 
                     <div className="flex justify-between items-center pt-6">
-                        <button type="button" onClick={handleDeleteClick} className="text-red-500 font-semibold px-4 py-2 rounded-lg hover:bg-red-500/10">Delete Tribe</button>
-                        <div className="flex items-center">
+                        <button 
+                            type="button" 
+                            onClick={handleDelete}
+                            className="bg-red-500/10 text-red-500 font-semibold px-4 py-2 rounded-lg hover:bg-red-500/20"
+                        >
+                            Delete Tribe
+                        </button>
+                        <div>
                             <button type="button" onClick={onClose} className="text-secondary font-semibold px-4 py-2 rounded-lg hover:bg-background">Cancel</button>
-                            <button type="submit" className="bg-accent text-accent-text font-semibold px-6 py-2 rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50" disabled={!name.trim() || !description.trim()}>Save Changes</button>
+                            <button type="submit" className="bg-accent text-accent-text font-semibold px-6 py-2 rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50 ml-2" disabled={!name.trim() || !description.trim()}>Save Changes</button>
                         </div>
                     </div>
                 </form>

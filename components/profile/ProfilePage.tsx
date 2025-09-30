@@ -1,3 +1,6 @@
+
+
+
 // import React, { useState, useRef } from 'react';
 // import { Post, User, Tribe } from '../../types';
 // import PostCard from '../feed/PostCard';
@@ -10,6 +13,7 @@
 // interface ProfilePageProps {
 //   user: User;
 //   allUsers: User[];
+//   visibleUsers: User[];
 //   allTribes: Tribe[];
 //   posts: Post[];
 //   currentUser: User;
@@ -29,7 +33,12 @@
 // }
 
 // const ProfilePage: React.FC<ProfilePageProps> = (props) => {
-//     const { user, allUsers, allTribes, posts, currentUser, onLikePost, onCommentPost, onDeletePost, onDeleteComment, onViewProfile, onUpdateUser, onAddPost, onToggleFollow, onToggleBlock, onStartConversation, onLogout, onDeleteAccount, onSharePost } = props;
+//     const { 
+//         user, allUsers, visibleUsers, allTribes, posts, currentUser, 
+//         onLikePost, onCommentPost, onDeletePost, onDeleteComment, 
+//         onViewProfile, onUpdateUser, onAddPost, onToggleFollow, 
+//         onToggleBlock, onStartConversation, onLogout, onDeleteAccount, onSharePost 
+//     } = props;
 //     const [isEditModalOpen, setEditModalOpen] = useState(false);
 //     const [isDeleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 //     const [isBlockedModalOpen, setBlockedModalOpen] = useState(false);
@@ -67,7 +76,7 @@
 //         <div className="p-4 md:p-6 relative">
 //             <div className="flex flex-col sm:flex-row justify-between items-start">
 //                 <div className="sm:-mt-20 -mt-16 flex-shrink-0">
-//                   <UserAvatar user={user} className="w-28 h-28 md:w-36 md:h-36 border-4 border-surface" />
+//                   <UserAvatar user={user} className="w-28 h-28 md:w-36 md:h-36 border-4 border-primary dark:border-surface" />
 //                 </div>
                 
 //                 <div className="w-full sm:w-auto pt-2 sm:pt-4 flex items-center space-x-2">
@@ -143,7 +152,7 @@
 //         </div>
 //       </div>
       
-//       {isOwnProfile && <CreatePost currentUser={currentUser} allUsers={allUsers} onAddPost={onAddPost} isPosting={false} />}
+//       {isOwnProfile && <CreatePost currentUser={currentUser} allUsers={visibleUsers} onAddPost={onAddPost} isPosting={false} />}
 
 //       <h2 className="text-xl font-bold text-primary my-6 font-display">{isOwnProfile ? "Your Posts" : `${user.name.split(' ')[0]}'s Posts`}</h2>
       
@@ -155,7 +164,7 @@
 //                     key={post.id}
 //                     post={post}
 //                     currentUser={currentUser}
-//                     allUsers={allUsers}
+//                     allUsers={visibleUsers}
 //                     allTribes={allTribes}
 //                     onLike={onLikePost}
 //                     onComment={onCommentPost}
@@ -392,7 +401,6 @@
 
 
 
-
 import React, { useState, useRef } from 'react';
 import { Post, User, Tribe } from '../../types';
 import PostCard from '../feed/PostCard';
@@ -405,6 +413,7 @@ import ShareButton from '../common/ShareButton';
 interface ProfilePageProps {
   user: User;
   allUsers: User[];
+  visibleUsers: User[];
   allTribes: Tribe[];
   posts: Post[];
   currentUser: User;
@@ -423,8 +432,13 @@ interface ProfilePageProps {
   onSharePost: (post: Post, destination: { type: 'tribe' | 'user', id: string }) => void;
 }
 
-const ProfilePage: React.FC<ProfilePageProps> = (props) => {
-    const { user, allUsers, allTribes, posts, currentUser, onLikePost, onCommentPost, onDeletePost, onDeleteComment, onViewProfile, onUpdateUser, onAddPost, onToggleFollow, onToggleBlock, onStartConversation, onLogout, onDeleteAccount, onSharePost } = props;
+export const ProfilePage: React.FC<ProfilePageProps> = (props) => {
+    const { 
+        user, allUsers, visibleUsers, allTribes, posts, currentUser, 
+        onLikePost, onCommentPost, onDeletePost, onDeleteComment, 
+        onViewProfile, onUpdateUser, onAddPost, onToggleFollow, 
+        onToggleBlock, onStartConversation, onLogout, onDeleteAccount, onSharePost 
+    } = props;
     const [isEditModalOpen, setEditModalOpen] = useState(false);
     const [isDeleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [isBlockedModalOpen, setBlockedModalOpen] = useState(false);
@@ -538,7 +552,7 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
         </div>
       </div>
       
-      {isOwnProfile && <CreatePost currentUser={currentUser} allUsers={allUsers} onAddPost={onAddPost} isPosting={false} />}
+      {isOwnProfile && <CreatePost currentUser={currentUser} allUsers={visibleUsers} onAddPost={onAddPost} isPosting={false} />}
 
       <h2 className="text-xl font-bold text-primary my-6 font-display">{isOwnProfile ? "Your Posts" : `${user.name.split(' ')[0]}'s Posts`}</h2>
       
@@ -550,7 +564,7 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
                     key={post.id}
                     post={post}
                     currentUser={currentUser}
-                    allUsers={allUsers}
+                    allUsers={visibleUsers}
                     allTribes={allTribes}
                     onLike={onLikePost}
                     onComment={onCommentPost}
@@ -778,5 +792,3 @@ const CameraIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 
 const OptionsIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
 const ShareIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
 const BlockIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
-
-export default ProfilePage;

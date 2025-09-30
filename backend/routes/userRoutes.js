@@ -1,3 +1,7 @@
+
+
+
+
 // import express from 'express';
 // import User from '../models/userModel.js';
 // import Post from '../models/postModel.js';
@@ -191,7 +195,6 @@
 
 
 
-
 import express from 'express';
 import User from '../models/userModel.js';
 import Post from '../models/postModel.js';
@@ -304,19 +307,26 @@ router.put('/:id/follow', protect, async (req, res) => {
             currentUser.following.push(userToFollow._id);
             userToFollow.followers.push(currentUser._id);
 
-            // Create notification
-            const notification = new Notification({
+            const existingNotification = await Notification.findOne({
                 recipient: userToFollow._id,
                 sender: currentUser._id,
                 type: 'follow',
             });
-            await notification.save();
-            const populatedNotification = await notification.populate('sender', 'id name username avatarUrl');
-            
-            // Emit notification to the user who was followed
-            const recipientSocketId = req.onlineUsers.get(userToFollow._id.toString());
-            if (recipientSocketId) {
-                req.io.to(recipientSocketId).emit('newNotification', populatedNotification);
+
+            if (!existingNotification) {
+                const notification = new Notification({
+                    recipient: userToFollow._id,
+                    sender: currentUser._id,
+                    type: 'follow',
+                });
+                await notification.save();
+                // FIX: Removed explicit 'id' from populate select string.
+                const populatedNotification = await notification.populate('sender', 'name username avatarUrl');
+                
+                const recipientSocketId = req.onlineUsers.get(userToFollow._id.toString());
+                if (recipientSocketId) {
+                    req.io.to(recipientSocketId).emit('newNotification', populatedNotification);
+                }
             }
         }
 

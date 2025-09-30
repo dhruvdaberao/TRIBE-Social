@@ -38,6 +38,7 @@
 
 
 
+
 import express from 'express';
 import protect from '../middleware/authMiddleware.js';
 import Notification from '../models/notificationModel.js';
@@ -48,10 +49,10 @@ const router = express.Router();
 // @desc    Get all notifications for the current user
 router.get('/', protect, async (req, res) => {
     try {
+        // FIX: Removed explicit 'id' from populate select string.
         const notifications = await Notification.find({ recipient: req.user.id })
-            .populate('sender', 'id name username avatarUrl')
-            .sort({ createdAt: -1 })
-            .limit(50);
+            .populate('sender', 'name username avatarUrl')
+            .sort({ createdAt: -1 });
         
         res.json(notifications);
     } catch (error) {
@@ -64,7 +65,7 @@ router.get('/', protect, async (req, res) => {
 // @desc    Mark all notifications as read
 router.put('/read', protect, async (req, res) => {
     try {
-        await Notification.updateMany({ recipient: req.user.id, read: false }, { $set: { read: true } });
+        await Notification.updateMany({ recipient: req.user.id }, { $set: { read: true } });
         res.json({ message: 'Notifications marked as read' });
     } catch (error) {
         console.error('Error marking notifications as read:', error);

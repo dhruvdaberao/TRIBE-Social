@@ -746,7 +746,7 @@ const fullyPopulatePost = async (post) => {
 // @desc    Get posts for the current user's feed
 router.get('/feed', protect, async (req, res) => {
     try {
-        const currentUser = await User.findById(req.user.id).lean();
+        const currentUser = await User.findById(req.user.id);
         if (!currentUser) {
             return res.status(401).json({ message: "User not found." });
         }

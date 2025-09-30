@@ -753,40 +753,19 @@ router.get('/feed', protect, async (req, res) => {
         
         const userIdsForFeed = [currentUser._id, ...(currentUser.following || [])];
 
-        // Fetch plain post objects without population for max stability
         const posts = await Post.find({ user: { $in: userIdsForFeed } })
+            .populate('user', 'name username avatarUrl')
+            .populate({
+                path: 'comments.user',
+                select: 'name username avatarUrl'
+            })
             .sort({ createdAt: -1 })
-            .limit(50)
-            .lean();
+            .limit(50);
         
-        // Gather all unique user IDs from posts and comments
-        const allUserIds = new Set();
-        posts.forEach(post => {
-            if (post.user) allUserIds.add(post.user.toString());
-            post.comments.forEach(comment => {
-                if (comment.user) allUserIds.add(comment.user.toString());
-            });
-        });
+        // Filter out any posts where the author might have been deleted but the post remains.
+        const validPosts = posts.filter(post => post.user);
 
-        // Fetch all required user profiles in a single, efficient query
-        const users = await User.find({ _id: { $in: Array.from(allUserIds) } }).select('name username avatarUrl').lean();
-        const userMap = new Map(users.map(u => [u._id.toString(), u]));
-
-        // Manually build the final, fully populated posts array
-        const populatedPosts = posts.map(post => {
-            const author = userMap.get(post.user.toString());
-            if (!author) return null; // Filter out posts with deleted authors
-
-            const populatedComments = post.comments.map(comment => {
-                const commentAuthor = userMap.get(comment.user.toString());
-                if (!commentAuthor) return null; // Filter out comments with deleted authors
-                return { ...comment, user: commentAuthor };
-            }).filter(Boolean);
-
-            return { ...post, user: author, comments: populatedComments };
-        }).filter(Boolean);
-        
-        res.json(populatedPosts);
+        res.json(validPosts);
 
     } catch (error) {
         console.error("Error in /api/posts/feed route:", error);
@@ -799,35 +778,17 @@ router.get('/feed', protect, async (req, res) => {
 // @desc    Get all posts for discover page, sorted by newest
 router.get('/', protect, async (req, res) => {
     try {
-        const posts = await Post.find({})
-            .sort({ createdAt: -1 })
-            .lean();
+         const posts = await Post.find({})
+            .populate('user', 'name username avatarUrl')
+            .populate({
+                path: 'comments.user',
+                select: 'name username avatarUrl'
+            })
+            .sort({ createdAt: -1 });
         
-        const allUserIds = new Set();
-        posts.forEach(post => {
-            if (post.user) allUserIds.add(post.user.toString());
-            post.comments.forEach(comment => {
-                if (comment.user) allUserIds.add(comment.user.toString());
-            });
-        });
+        const validPosts = posts.filter(post => post.user);
 
-        const users = await User.find({ _id: { $in: Array.from(allUserIds) } }).select('name username avatarUrl').lean();
-        const userMap = new Map(users.map(u => [u._id.toString(), u]));
-
-        const populatedPosts = posts.map(post => {
-            const author = userMap.get(post.user.toString());
-            if (!author) return null;
-
-            const populatedComments = post.comments.map(comment => {
-                const commentAuthor = userMap.get(comment.user.toString());
-                if (!commentAuthor) return null;
-                return { ...comment, user: commentAuthor };
-            }).filter(Boolean);
-
-            return { ...post, user: author, comments: populatedComments };
-        }).filter(Boolean);
-        
-        res.json(populatedPosts);
+        res.json(validPosts);
     } catch (error) {
         console.error("Discover posts route error:", error);
         res.status(500).json({ message: 'Server Error' });

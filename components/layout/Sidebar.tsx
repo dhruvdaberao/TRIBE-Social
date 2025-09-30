@@ -302,8 +302,6 @@
 
 
 
-
-
 import React from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { User } from '../../types';
@@ -410,7 +408,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, onSelectItem, currentUser
                 <ChukIcon />
             </button>
             <div className="flex items-center space-x-3">
-                <button onClick={() => onSelectItem('Profile')} aria-label="View Profile">
+                <button onClick={() => onSelectItem('Profile')} aria-label="View Profile" className="rounded-full border-2 border-surface hover:border-primary transition-colors">
                    <UserAvatar user={currentUser} className="w-10 h-10" />
                 </button>
                 <div className="hidden lg:block text-right">

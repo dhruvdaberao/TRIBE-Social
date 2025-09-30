@@ -737,68 +737,60 @@ const router = express.Router();
 
 // A helper to consistently populate a post document after it's saved/updated.
 const fullyPopulatePost = async (post) => {
-    return post.populate([
-        { path: 'user', select: 'name username avatarUrl' },
-        { path: 'comments.user', select: 'name username avatarUrl' }
-    ]);
+    await post.populate('user', 'name username avatarUrl');
+    await post.populate('comments.user', 'name username avatarUrl');
+    return post;
 };
 
 // @route   GET /api/posts/feed
 // @desc    Get posts for the current user's feed
 router.get('/feed', protect, async (req, res) => {
     try {
-        const currentUser = await User.findById(req.user.id).lean(); // Use lean for performance
+        const currentUser = await User.findById(req.user.id).lean();
         if (!currentUser) {
             return res.status(401).json({ message: "User not found." });
         }
         
         const userIdsForFeed = [currentUser._id, ...(currentUser.following || [])];
 
-        // Step 1: Fetch posts and populate only the main author. Using .lean() for performance.
-        let posts = await Post.find({ user: { $in: userIdsForFeed } })
-            .populate('user', 'name username avatarUrl')
+        // Fetch plain post objects without population for max stability
+        const posts = await Post.find({ user: { $in: userIdsForFeed } })
             .sort({ createdAt: -1 })
             .limit(50)
             .lean();
         
-        // Step 2: Filter out any posts where the author might have been deleted.
-        posts = posts.filter(p => p.user);
-
-        // Step 3: Efficiently gather all unique user IDs from comments across all posts.
-        const commentUserIds = new Set();
+        // Gather all unique user IDs from posts and comments
+        const allUserIds = new Set();
         posts.forEach(post => {
+            if (post.user) allUserIds.add(post.user.toString());
             post.comments.forEach(comment => {
-                // Ensure comment.user is a valid ID before adding
-                if (comment.user) {
-                    commentUserIds.add(comment.user.toString());
-                }
+                if (comment.user) allUserIds.add(comment.user.toString());
             });
         });
 
-        // Step 4: Fetch all required comment author profiles in a single, efficient query.
-        const commentUsers = await User.find({ _id: { $in: Array.from(commentUserIds) } }).select('name username avatarUrl').lean();
-        const commentUserMap = new Map(commentUsers.map(u => [u._id.toString(), u]));
+        // Fetch all required user profiles in a single, efficient query
+        const users = await User.find({ _id: { $in: Array.from(allUserIds) } }).select('name username avatarUrl').lean();
+        const userMap = new Map(users.map(u => [u._id.toString(), u]));
 
-        // Step 5: Manually and safely populate the comment authors.
-        posts.forEach(post => {
-            post.comments = post.comments
-                .map(comment => {
-                    if (!comment.user) return null; // Skip if comment user ID is missing
-                    const userForComment = commentUserMap.get(comment.user.toString());
-                    if (userForComment) {
-                        // Replace the user ID with the full user object
-                        return { ...comment, user: userForComment };
-                    }
-                    return null; // This comment's author was not found (e.g., deleted)
-                })
-                .filter(Boolean); // Filter out any comments where the author was not found.
-        });
+        // Manually build the final, fully populated posts array
+        const populatedPosts = posts.map(post => {
+            const author = userMap.get(post.user.toString());
+            if (!author) return null; // Filter out posts with deleted authors
+
+            const populatedComments = post.comments.map(comment => {
+                const commentAuthor = userMap.get(comment.user.toString());
+                if (!commentAuthor) return null; // Filter out comments with deleted authors
+                return { ...comment, user: commentAuthor };
+            }).filter(Boolean);
+
+            return { ...post, user: author, comments: populatedComments };
+        }).filter(Boolean);
         
-        res.json(posts);
+        res.json(populatedPosts);
 
     } catch (error) {
         console.error("Error in /api/posts/feed route:", error);
-        res.status(500).json({ message: 'Server failed to fetch feed posts.' });
+        res.status(500).json({ message: 'Server Error' });
     }
 });
 
@@ -807,45 +799,57 @@ router.get('/feed', protect, async (req, res) => {
 // @desc    Get all posts for discover page, sorted by newest
 router.get('/', protect, async (req, res) => {
     try {
-        // Applying the same robust, multi-step population logic for the discover page.
-        let posts = await Post.find({})
-            .populate('user', 'name username avatarUrl')
+        const posts = await Post.find({})
             .sort({ createdAt: -1 })
             .lean();
         
-        posts = posts.filter(p => p.user);
-
-        const commentUserIds = new Set();
+        const allUserIds = new Set();
         posts.forEach(post => {
+            if (post.user) allUserIds.add(post.user.toString());
             post.comments.forEach(comment => {
-                if (comment.user) {
-                    commentUserIds.add(comment.user.toString());
-                }
+                if (comment.user) allUserIds.add(comment.user.toString());
             });
         });
 
-        const commentUsers = await User.find({ _id: { $in: Array.from(commentUserIds) } }).select('name username avatarUrl').lean();
-        const commentUserMap = new Map(commentUsers.map(u => [u._id.toString(), u]));
+        const users = await User.find({ _id: { $in: Array.from(allUserIds) } }).select('name username avatarUrl').lean();
+        const userMap = new Map(users.map(u => [u._id.toString(), u]));
 
-        posts.forEach(post => {
-            post.comments = post.comments
-                .map(comment => {
-                    if (!comment.user) return null;
-                    const userForComment = commentUserMap.get(comment.user.toString());
-                    if (userForComment) {
-                        return { ...comment, user: userForComment };
-                    }
-                    return null;
-                })
-                .filter(Boolean);
-        });
+        const populatedPosts = posts.map(post => {
+            const author = userMap.get(post.user.toString());
+            if (!author) return null;
+
+            const populatedComments = post.comments.map(comment => {
+                const commentAuthor = userMap.get(comment.user.toString());
+                if (!commentAuthor) return null;
+                return { ...comment, user: commentAuthor };
+            }).filter(Boolean);
+
+            return { ...post, user: author, comments: populatedComments };
+        }).filter(Boolean);
         
-        res.json(posts);
+        res.json(populatedPosts);
     } catch (error) {
         console.error("Discover posts route error:", error);
-        res.status(500).json({ message: 'Server Error on discover posts route' });
+        res.status(500).json({ message: 'Server Error' });
     }
 });
+
+// @route   GET /api/posts/:id
+// @desc    Get a single post by ID
+router.get('/:id', protect, async (req, res) => {
+    try {
+        let post = await Post.findById(req.params.id);
+        if (!post) {
+            return res.status(404).json({ message: 'Post not found' });
+        }
+        post = await fullyPopulatePost(post);
+        res.json(post);
+    } catch (error) {
+        console.error('Get post by ID error:', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+
 
 // @route   POST /api/posts
 // @desc    Create a new post

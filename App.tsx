@@ -1029,13 +1029,32 @@ const App: React.FC = () => {
         }
     };
     
-    const handleViewPost = (postId: string) => {
-        const post = posts.find(p => p.id === postId);
-        if (post) {
+    const handleViewPost = async (postId: string) => {
+        let post = posts.find(p => p.id === postId);
+
+        if (!post) {
+            try {
+                toast.info("Loading post...");
+                const { data } = await api.fetchPost(postId);
+                const populatedPost = populatePost(data, userMap);
+                if (populatedPost) {
+                    setPosts(prev => {
+                        const postExists = prev.some(p => p.id === populatedPost.id);
+                        return postExists ? prev : [populatedPost, ...prev];
+                    });
+                    post = populatedPost;
+                }
+            } catch (error) {
+                console.error("Failed to fetch single post:", error);
+                toast.error("Could not load the post. It may have been deleted.");
+                return;
+            }
+        }
+
+        if (post && post.author) {
             handleViewProfile(post.author);
-            // Future improvement: scroll to the post on the profile page.
         } else {
-            toast.info("Could not find the post. It may have been deleted.");
+            toast.error("Could not find the post. It may have been deleted.");
         }
     };
 
@@ -1066,8 +1085,8 @@ const App: React.FC = () => {
     const handleToggleBlock = async (targetUserId: string) => {
         if (!currentUser) return;
         const originalUser = { ...currentUser };
-        const isBlocked = currentUser.blockedUsers.includes(targetUserId);
-        setCurrentUser(prev => prev ? { ...prev, blockedUsers: isBlocked ? prev.blockedUsers.filter(id => id !== targetUserId) : [...prev.blockedUsers, targetUserId]} : null);
+        const isBlocked = (currentUser.blockedUsers || []).includes(targetUserId);
+        setCurrentUser(prev => prev ? { ...prev, blockedUsers: isBlocked ? (prev.blockedUsers || []).filter(id => id !== targetUserId) : [...(prev.blockedUsers || []), targetUserId]} : null);
         try {
             await api.toggleBlock(targetUserId);
             toast.success(isBlocked ? "User unblocked." : "User blocked.");
@@ -1187,12 +1206,12 @@ const App: React.FC = () => {
 
     const visiblePosts = useMemo(() => {
         if (!currentUser) return [];
-        return posts.filter(p => !currentUser.blockedUsers.includes(p.author.id) && !p.author.blockedUsers?.includes(currentUser.id));
+        return posts.filter(p => !(currentUser.blockedUsers || []).includes(p.author.id) && !(p.author.blockedUsers || []).includes(currentUser.id));
     }, [posts, currentUser]);
 
     const visibleUsers = useMemo(() => {
         if (!currentUser) return [];
-        return users.filter(u => !currentUser.blockedUsers.includes(u.id) && !u.blockedUsers?.includes(currentUser.id));
+        return users.filter(u => !(currentUser.blockedUsers || []).includes(u.id) && !(u.blockedUsers || []).includes(currentUser.id));
     }, [users, currentUser]);
     
     if (isAuthLoading) {
@@ -1222,7 +1241,7 @@ const App: React.FC = () => {
     const renderContent = () => {
         switch (activeNavItem) {
             case 'Home':
-                const feedPosts = visiblePosts.filter(p => currentUser.following.includes(p.author.id) || p.author.id === currentUser.id);
+                const feedPosts = visiblePosts.filter(p => (currentUser.following || []).includes(p.author.id) || p.author.id === currentUser.id);
                 return (
                     <>
                         <CreatePost currentUser={currentUser} allUsers={visibleUsers} onAddPost={handleAddPost} isPosting={isCreatingPost}/>
@@ -1285,7 +1304,6 @@ const App: React.FC = () => {
                     currentUser={currentUser}
                     onSendMessage={handleSendTribeMessage}
                     onDeleteMessage={handleDeleteTribeMessage}
-                    // FIX: Passed the required onDeleteTribe prop to the TribeDetailPage component.
                     onDeleteTribe={handleDeleteTribe}
                     onBack={() => setActiveNavItem('Tribes')}
                     onViewProfile={handleViewProfile}
@@ -1300,7 +1318,7 @@ const App: React.FC = () => {
                     onViewPost={handleViewPost}
                 />;
             case 'Profile':
-                if (!viewedUser || currentUser.blockedUsers.includes(viewedUser.id) || viewedUser.blockedUsers?.includes(currentUser.id)) {
+                if (!viewedUser || (currentUser.blockedUsers || []).includes(viewedUser.id) || (viewedUser.blockedUsers || []).includes(currentUser.id)) {
                      return <div className="text-center p-8">User not found or is blocked.</div>;
                 }
                 const userPosts = visiblePosts.filter(p => p.author.id === viewedUser.id);

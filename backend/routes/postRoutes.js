@@ -738,7 +738,7 @@ const router = express.Router();
 // A helper to consistently populate a post document after it's saved/updated.
 const fullyPopulatePost = async (post) => {
     return post.populate([
-        { path: 'user', select: 'name username avatarUrl bannerUrl bio followers following blockedUsers' },
+        { path: 'user', select: 'name username avatarUrl' },
         { path: 'comments.user', select: 'name username avatarUrl' }
     ]);
 };
@@ -756,7 +756,7 @@ router.get('/feed', protect, async (req, res) => {
 
         // Step 1: Fetch posts and populate only the main author. Using .lean() for performance.
         let posts = await Post.find({ user: { $in: userIdsForFeed } })
-            .populate('user', 'name username avatarUrl bannerUrl bio followers following blockedUsers')
+            .populate('user', 'name username avatarUrl')
             .sort({ createdAt: -1 })
             .limit(50)
             .lean();
@@ -809,7 +809,7 @@ router.get('/', protect, async (req, res) => {
     try {
         // Applying the same robust, multi-step population logic for the discover page.
         let posts = await Post.find({})
-            .populate('user', 'name username avatarUrl bannerUrl bio followers following blockedUsers')
+            .populate('user', 'name username avatarUrl')
             .sort({ createdAt: -1 })
             .lean();
         
@@ -864,7 +864,7 @@ router.post('/', protect, async (req, res) => {
         let createdPost = await post.save();
         createdPost = await createdPost.populate({ 
             path: 'user', 
-            select: 'name username avatarUrl bannerUrl bio followers following blockedUsers' 
+            select: 'name username avatarUrl' 
         });
         
         req.io.emit('newPost', createdPost);

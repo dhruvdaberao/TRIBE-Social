@@ -746,26 +746,76 @@ const fullyPopulatePost = async (post) => {
 // @desc    Get posts for the current user's feed
 router.get('/feed', protect, async (req, res) => {
     try {
-        const currentUser = await User.findById(req.user.id);
+        const currentUser = await User.findById(req.user.id).lean();
         if (!currentUser) {
             return res.status(401).json({ message: "User not found." });
         }
         
         const userIdsForFeed = [currentUser._id, ...(currentUser.following || [])];
 
-        const posts = await Post.find({ user: { $in: userIdsForFeed } })
-            .populate('user', 'name username avatarUrl')
-            .populate({
-                path: 'comments.user',
-                select: 'name username avatarUrl'
-            })
+        // 1. Fetch plain post objects
+        const postsFromDb = await Post.find({ user: { $in: userIdsForFeed } })
             .sort({ createdAt: -1 })
-            .limit(50);
-        
-        // Filter out any posts where the author might have been deleted but the post remains.
-        const validPosts = posts.filter(post => post.user);
+            .limit(50)
+            .lean();
 
-        res.json(validPosts);
+        if (!postsFromDb || postsFromDb.length === 0) {
+            return res.json([]);
+        }
+
+        // 2. Gather all unique user IDs from posts and comments
+        const userIds = new Set();
+        postsFromDb.forEach(post => {
+            if (post.user) userIds.add(post.user.toString());
+            (post.comments || []).forEach(comment => {
+                if (comment.user) userIds.add(comment.user.toString());
+            });
+        });
+
+        // 3. Fetch all required users in one go
+        const users = await User.find({ _id: { $in: Array.from(userIds) } }).select('name username avatarUrl').lean();
+
+        // 4. Create a user map for quick lookup
+        const userMap = new Map(users.map(user => [user._id.toString(), {
+            id: user._id.toString(),
+            name: user.name,
+            username: user.username,
+            avatarUrl: user.avatarUrl
+        }]));
+
+        // 5. Manually populate and filter posts to create the final response
+        const populatedPosts = postsFromDb.map(post => {
+            const author = userMap.get(post.user.toString());
+            if (!author) {
+                return null; // Filter out post if author is deleted/not found
+            }
+
+            const populatedComments = (post.comments || []).map(comment => {
+                const commentAuthor = userMap.get(comment.user.toString());
+                if (!commentAuthor) {
+                    return null; // Filter out comment if author is deleted/not found
+                }
+                return {
+                    id: comment._id.toString(),
+                    user: commentAuthor,
+                    text: comment.text,
+                    timestamp: comment.createdAt ? comment.createdAt.toISOString() : new Date(0).toISOString()
+                };
+            }).filter(Boolean);
+
+            // Replicate the structure expected by the frontend
+            return {
+                id: post._id.toString(),
+                user: author,
+                content: post.content,
+                imageUrl: post.imageUrl,
+                timestamp: post.createdAt ? post.createdAt.toISOString() : new Date(0).toISOString(),
+                likes: (post.likes || []).map(id => id.toString()),
+                comments: populatedComments
+            };
+        }).filter(Boolean);
+
+        res.json(populatedPosts);
 
     } catch (error) {
         console.error("Error in /api/posts/feed route:", error);
@@ -778,17 +828,59 @@ router.get('/feed', protect, async (req, res) => {
 // @desc    Get all posts for discover page, sorted by newest
 router.get('/', protect, async (req, res) => {
     try {
-         const posts = await Post.find({})
-            .populate('user', 'name username avatarUrl')
-            .populate({
-                path: 'comments.user',
-                select: 'name username avatarUrl'
-            })
-            .sort({ createdAt: -1 });
-        
-        const validPosts = posts.filter(post => post.user);
+        const postsFromDb = await Post.find({})
+            .sort({ createdAt: -1 })
+            .lean();
 
-        res.json(validPosts);
+        if (!postsFromDb || postsFromDb.length === 0) {
+            return res.json([]);
+        }
+
+        const userIds = new Set();
+        postsFromDb.forEach(post => {
+            if (post.user) userIds.add(post.user.toString());
+            (post.comments || []).forEach(comment => {
+                if (comment.user) userIds.add(comment.user.toString());
+            });
+        });
+
+        const users = await User.find({ _id: { $in: Array.from(userIds) } }).select('name username avatarUrl').lean();
+
+        const userMap = new Map(users.map(user => [user._id.toString(), {
+            id: user._id.toString(),
+            name: user.name,
+            username: user.username,
+            avatarUrl: user.avatarUrl
+        }]));
+
+        const populatedPosts = postsFromDb.map(post => {
+            const author = userMap.get(post.user.toString());
+            if (!author) return null;
+
+            const populatedComments = (post.comments || []).map(comment => {
+                const commentAuthor = userMap.get(comment.user.toString());
+                if (!commentAuthor) return null;
+                return {
+                    id: comment._id.toString(),
+                    user: commentAuthor,
+                    text: comment.text,
+                    timestamp: comment.createdAt ? comment.createdAt.toISOString() : new Date(0).toISOString()
+                };
+            }).filter(Boolean);
+
+            return {
+                id: post._id.toString(),
+                user: author,
+                content: post.content,
+                imageUrl: post.imageUrl,
+                timestamp: post.createdAt ? post.createdAt.toISOString() : new Date(0).toISOString(),
+                likes: (post.likes || []).map(id => id.toString()),
+                comments: populatedComments
+            };
+        }).filter(Boolean);
+
+        res.json(populatedPosts);
+        
     } catch (error) {
         console.error("Discover posts route error:", error);
         res.status(500).json({ message: 'Server Error' });

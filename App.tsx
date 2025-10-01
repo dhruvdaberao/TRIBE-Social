@@ -721,6 +721,7 @@
 
 
 
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from './contexts/AuthContext';
 import { useSocket } from './contexts/SocketContext';
@@ -1235,7 +1236,7 @@ const App: React.FC = () => {
                 return <TribesPage tribes={tribes} currentUser={currentUser} onJoinToggle={handleJoinToggle} onCreateTribe={handleCreateTribe} onViewTribe={handleViewTribe} onEditTribe={(tribe) => setEditingTribe(tribe)} />;
             case 'TribeDetail':
                 if (!viewedTribe) return <div className="text-center p-8">Tribe not found. Go back to discover more tribes.</div>;
-                return <TribeDetailPage tribe={viewedTribe} currentUser={currentUser} onSendMessage={handleSendTribeMessage} onDeleteMessage={handleDeleteTribeMessage} onDeleteTribe={handleDeleteTribe} onBack={() => setActiveNavItem('Tribes')} onViewProfile={handleViewProfile} onEditTribe={(tribe) => setEditingTribe(tribe)} onJoinToggle={handleJoinToggle} />;
+                return <TribeDetailPage tribe={viewedTribe} currentUser={currentUser} userMap={userMap} onSendMessage={handleSendTribeMessage} onDeleteMessage={handleDeleteTribeMessage} onDeleteTribe={handleDeleteTribe} onBack={() => setActiveNavItem('Tribes')} onViewProfile={handleViewProfile} onEditTribe={(tribe) => setEditingTribe(tribe)} onJoinToggle={handleJoinToggle} />;
             case 'Notifications':
                 return <NotificationsPage notifications={notifications} onViewProfile={handleViewProfile} onViewMessage={handleStartConversation} onViewPost={handleViewPost} />;
             case 'Profile':

@@ -91,8 +91,6 @@
 
 
 
-
-
 import React, { useState } from 'react';
 import { Tribe, User } from '../../types';
 import TribeCard from './TribeCard';
@@ -121,6 +119,7 @@ const TribesPage: React.FC<TribesPageProps> = ({ tribes, currentUser, onJoinTogg
                     onClick={() => setCreateModalOpen(true)}
                     className="bg-accent text-accent-text font-semibold px-5 py-2 rounded-lg hover:bg-accent-hover transition-colors flex items-center justify-center space-x-2 shadow-sm hover:shadow-md"
                 >
+                    {/* FIX: PlusIcon was used but not defined. */}
                     <PlusIcon/>
                     <span>Create Tribe</span>
                 </button>
@@ -147,25 +146,24 @@ const TribesPage: React.FC<TribesPageProps> = ({ tribes, currentUser, onJoinTogg
            
             <div>
                 <h2 className="text-xl font-bold text-primary mb-4 font-display">Discover Tribes</h2>
-                {tribes.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {otherTribes.map(tribe => (
-                            <TribeCard 
-                                key={tribe.id}
-                                tribe={tribe}
-                                currentUser={currentUser}
-                                isMember={false}
-                                onJoinToggle={onJoinToggle}
-                                onViewTribe={onViewTribe}
-                                onEditTribe={onEditTribe}
-                            />
-                        ))}
-                    </div>
-                ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {otherTribes.map(tribe => (
+                        <TribeCard 
+                            key={tribe.id}
+                            tribe={tribe}
+                            currentUser={currentUser}
+                            isMember={false}
+                            onJoinToggle={onJoinToggle}
+                            onViewTribe={onViewTribe}
+                            onEditTribe={onEditTribe}
+                        />
+                    ))}
+                </div>
+                 {otherTribes.length === 0 && (
                     <div className="bg-surface p-8 text-center rounded-2xl border border-border col-span-full shadow-md">
-                        <p className="text-secondary">No tribes found. Why not create the first one?</p>
+                        <p className="text-secondary">No other tribes to join right now.</p>
                     </div>
-                )}
+                 )}
             </div>
 
             {isCreateModalOpen && (
@@ -178,6 +176,8 @@ const TribesPage: React.FC<TribesPageProps> = ({ tribes, currentUser, onJoinTogg
     );
 };
 
+// FIX: Added PlusIcon definition to resolve 'Cannot find name' error.
 const PlusIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>;
 
+// FIX: Added default export to resolve module import error in App.tsx.
 export default TribesPage;

@@ -883,17 +883,19 @@
 
 
 
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Tribe, User, TribeMessage } from '../../types';
 import UserAvatar from '../common/UserAvatar';
 import { useSocket } from '../../contexts/SocketContext';
+import TribeMembersModal from './TribeMembersModal';
 
 interface TribeDetailPageProps {
   tribe: Tribe;
   currentUser: User;
+  userMap: Map<string, User>;
   onSendMessage: (tribeId: string, text: string, imageUrl?: string) => void;
   onDeleteMessage: (tribeId: string, messageId: string) => void;
+  onDeleteTribe: (tribeId: string) => void;
   onBack: () => void;
   onViewProfile: (user: User) => void;
   onEditTribe: (tribe: Tribe) => void;
@@ -913,9 +915,10 @@ const TribePlaceholderIcon = () => (
 
 
 const TribeDetailPage: React.FC<TribeDetailPageProps> = (props) => {
-  const { tribe, currentUser, onSendMessage, onDeleteMessage, onBack, onViewProfile, onEditTribe } = props;
+  const { tribe, currentUser, userMap, onSendMessage, onDeleteMessage, onDeleteTribe, onBack, onViewProfile, onEditTribe, onJoinToggle } = props;
   const [inputText, setInputText] = useState('');
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [isMembersModalOpen, setMembersModalOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { socket, clearUnreadTribe } = useSocket();
@@ -926,8 +929,8 @@ const TribeDetailPage: React.FC<TribeDetailPageProps> = (props) => {
   }, [tribe.messages]);
 
   useEffect(() => {
-    if(isMember) clearUnreadTribe(tribe.id);
-  }, [tribe.id, clearUnreadTribe, isMember]);
+    clearUnreadTribe(tribe.id);
+  }, [tribe.id, clearUnreadTribe]);
 
   useEffect(() => {
     if (!socket) return;
@@ -941,8 +944,8 @@ const TribeDetailPage: React.FC<TribeDetailPageProps> = (props) => {
     socket.on('userStoppedTyping', handleStopTyping);
 
     return () => {
-      socket.off('userTyping', handleTyping);
-      socket.off('userStoppedTyping', handleStopTyping);
+      socket.off('userTyping');
+      socket.off('userStoppedTyping');
     };
   }, [socket]);
   
@@ -981,102 +984,129 @@ const TribeDetailPage: React.FC<TribeDetailPageProps> = (props) => {
     return 'Several people are typing...';
   }, [typingUsers, tribe.members.length, currentUser.name]);
 
+  const handleViewProfileFromModal = (user: User) => {
+      onViewProfile(user);
+      setMembersModalOpen(false);
+  }
+
   return (
-    <div className="flex flex-col h-full bg-surface rounded-2xl border border-border shadow-md overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center p-3 border-b border-border flex-shrink-0">
-        <button onClick={onBack} className="p-2 mr-2 text-primary">
-            <BackIcon />
-        </button>
-        {tribe.avatarUrl ? (
-            <img src={tribe.avatarUrl} alt={tribe.name} className="w-10 h-10 rounded-full mr-3 object-cover"/>
-        ) : (
-            <TribePlaceholderIcon />
-        )}
-        <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-bold text-primary truncate">{tribe.name}</h2>
-            <p className={`text-sm truncate ${typingUsers.length > 0 && typingUsers.some(u => u !== currentUser.name) ? 'text-accent italic' : 'text-secondary'}`}>{typingText}</p>
-        </div>
-        <div className="ml-auto flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
-            {currentUser.id === tribe.owner && (
-                <button 
-                    onClick={() => onEditTribe(tribe)} 
-                    className="p-2 text-secondary hover:text-primary rounded-full hover:bg-background"
-                    aria-label="Edit Tribe"
-                >
-                    <EditIcon />
-                </button>
-            )}
-        </div>
-      </div>
-
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 bg-background">
-        <div className="flex flex-col space-y-2">
-          {tribe.messages.map(message => {
-            const isCurrentUser = message.sender.id === currentUser.id;
-            return (
-              <div key={message.id} className={`flex items-end gap-2.5 group ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
-                 {!isCurrentUser && (
-                     <div 
-                        className="w-8 h-8 rounded-full cursor-pointer self-start flex-shrink-0"
-                        onClick={() => onViewProfile(message.sender)}
-                     >
-                        <UserAvatar user={message.sender} className="w-full h-full" />
-                     </div>
-                 )}
-                {isCurrentUser && (
-                    <button onClick={() => onDeleteMessage(tribe.id, message.id)} className="text-secondary p-1 rounded-full hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <TrashIcon className="h-4 w-4" />
-                    </button>
-                )}
-                <div className={`flex flex-col w-full max-w-xs lg:max-w-md ${isCurrentUser ? 'items-end' : 'items-start'}`}>
-                    {!isCurrentUser && (
-                        <p 
-                            className="text-xs text-secondary mb-1 ml-3 cursor-pointer hover:underline"
-                            onClick={() => onViewProfile(message.sender)}
-                        >
-                            {message.sender.name}
-                        </p>
-                    )}
-                    <div className={`px-4 py-2.5 rounded-xl text-sm break-words ${isCurrentUser ? 'bg-accent text-accent-text' : 'bg-surface text-primary shadow-sm'}`}>
-                         {message.imageUrl && (
-                          <img src={message.imageUrl} alt="Shared content" className="mb-2 rounded-lg w-full" />
-                        )}
-                        <p className="leading-relaxed whitespace-pre-wrap">{message.text}</p>
-                    </div>
-                    <p className="text-xs text-secondary mt-1.5 px-1">{new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                </div>
-              </div>
-            );
-          })}
-          {tribe.messages.length === 0 && (
-              <div className="text-center text-secondary p-8">
-                  <p>Welcome to #{tribe.name}!</p>
-                  <p className="text-sm">Be the first one to send a message.</p>
-              </div>
-          )}
-           <div ref={messagesEndRef} />
-        </div>
-      </div>
-
-      {/* Input */}
-      <div className="p-4 border-t border-border bg-surface flex-shrink-0">
-        <form onSubmit={handleSendMessage} className="flex items-center space-x-3">
-          <input
-            type="text"
-            value={inputText}
-            onChange={handleInputChange}
-            placeholder={isMember ? `Message #${tribe.name}` : "You must be a member to chat"}
-            className="flex-1 bg-background border border-border rounded-full px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-accent text-primary min-w-0"
-            disabled={!isMember}
-          />
-          <button type="submit" className="bg-accent text-accent-text rounded-full w-11 h-11 flex-shrink-0 flex items-center justify-center hover:bg-accent-hover transition-colors disabled:opacity-50" disabled={!inputText.trim() || !isMember}>
-            <SendIcon />
+    <>
+      <div className="flex flex-col h-full bg-surface rounded-2xl border border-border shadow-md overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center p-3 border-b border-border flex-shrink-0">
+          <button onClick={onBack} className="p-2 mr-2 text-primary">
+              <BackIcon />
           </button>
-        </form>
+          {tribe.avatarUrl ? (
+              <img src={tribe.avatarUrl} alt={tribe.name} className="w-10 h-10 rounded-full mr-3 object-cover"/>
+          ) : (
+              <TribePlaceholderIcon />
+          )}
+          <div className="flex-1 min-w-0">
+              <h2 className="text-lg font-bold text-primary truncate">{tribe.name}</h2>
+              <button onClick={() => setMembersModalOpen(true)} className={`text-sm truncate text-left hover:underline ${typingUsers.length > 0 && typingUsers.some(u => u !== currentUser.name) ? 'text-accent italic' : 'text-secondary'}`}>
+                {typingText}
+              </button>
+          </div>
+          <div className="ml-auto flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
+              {currentUser.id === tribe.owner && (
+                  <>
+                      <button 
+                          onClick={() => onEditTribe(tribe)} 
+                          className="p-2 text-secondary hover:text-primary rounded-full hover:bg-background"
+                          aria-label="Edit Tribe"
+                      >
+                          <EditIcon />
+                      </button>
+                      <button 
+                          onClick={() => onDeleteTribe(tribe.id)} 
+                          className="p-2 text-red-500 hover:bg-red-500/10 rounded-full"
+                          aria-label="Delete Tribe"
+                      >
+                          <TrashIcon />
+                      </button>
+                  </>
+              )}
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4 bg-background">
+          <div className="flex flex-col space-y-2">
+            {tribe.messages.map(message => {
+              const isCurrentUser = message.sender.id === currentUser.id;
+              return (
+                <div key={message.id} className={`flex items-end gap-2.5 group ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+                  {!isCurrentUser && (
+                      <div 
+                          className="w-8 h-8 rounded-full cursor-pointer self-start flex-shrink-0"
+                          onClick={() => onViewProfile(message.sender)}
+                      >
+                          <UserAvatar user={message.sender} className="w-full h-full" />
+                      </div>
+                  )}
+                  {isCurrentUser && (
+                      <button onClick={() => onDeleteMessage(tribe.id, message.id)} className="text-secondary p-1 rounded-full hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <TrashIcon className="h-4 w-4" />
+                      </button>
+                  )}
+                  <div className={`flex flex-col w-full max-w-xs lg:max-w-md ${isCurrentUser ? 'items-end' : 'items-start'}`}>
+                      {!isCurrentUser && (
+                          <p 
+                              className="text-xs text-secondary mb-1 ml-3 cursor-pointer hover:underline"
+                              onClick={() => onViewProfile(message.sender)}
+                          >
+                              {message.sender.name}
+                          </p>
+                      )}
+                      <div className={`px-4 py-2.5 rounded-xl text-sm break-words ${isCurrentUser ? 'bg-accent text-accent-text' : 'bg-surface text-primary shadow-sm'}`}>
+                          {message.imageUrl && (
+                            <img src={message.imageUrl} alt="Shared content" className="mb-2 rounded-lg w-full" />
+                          )}
+                          <p className="leading-relaxed whitespace-pre-wrap">{message.text}</p>
+                      </div>
+                      <p className="text-xs text-secondary mt-1.5 px-1">{new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                  </div>
+                </div>
+              );
+            })}
+            {tribe.messages.length === 0 && (
+                <div className="text-center text-secondary p-8">
+                    <p>Welcome to #{tribe.name}!</p>
+                    <p className="text-sm">Be the first one to send a message.</p>
+                </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
+
+        {/* Input */}
+        <div className="p-4 border-t border-border bg-surface flex-shrink-0">
+          <form onSubmit={handleSendMessage} className="flex items-center space-x-3">
+            <input
+              type="text"
+              value={inputText}
+              onChange={handleInputChange}
+              placeholder={isMember ? `Message #${tribe.name}` : "You must be a member to chat"}
+              className="flex-1 bg-background border border-border rounded-full px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-accent text-primary min-w-0"
+              disabled={!isMember}
+            />
+            <button type="submit" className="bg-accent text-accent-text rounded-full w-11 h-11 flex-shrink-0 flex items-center justify-center hover:bg-accent-hover transition-colors disabled:opacity-50" disabled={!inputText.trim() || !isMember}>
+              <SendIcon />
+            </button>
+          </form>
+        </div>
       </div>
-    </div>
+      {isMembersModalOpen && (
+        <TribeMembersModal
+            isOpen={isMembersModalOpen}
+            onClose={() => setMembersModalOpen(false)}
+            memberIds={tribe.members}
+            userMap={userMap}
+            onViewProfile={handleViewProfileFromModal}
+        />
+      )}
+    </>
   );
 };
 

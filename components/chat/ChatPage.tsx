@@ -2,10 +2,6 @@
 
 
 
-
-
-
-
 // import React, { useState, useEffect, useCallback, useMemo } from 'react';
 // import { Conversation, User, Message, Post } from '../../types';
 // import ConversationList from './ConversationList';
@@ -30,7 +26,6 @@
 //   const [isMessageAreaVisible, setMessageAreaVisible] = useState(false);
 //   const [isNewMessageModalOpen, setNewMessageModalOpen] = useState(false);
 //   const [isSending, setIsSending] = useState(false);
-//   const [isLoading, setIsLoading] = useState(true);
 //   const { socket, onlineUsers, clearUnreadMessages } = useSocket();
 
 //   const userMap = useMemo(() => {
@@ -40,22 +35,13 @@
 //   }, [allUsers, chukUser]);
 
 //   const fetchConversations = useCallback(async () => {
-//       setIsLoading(true);
 //       try {
 //         const { data } = await api.fetchConversations();
-//         if (Array.isArray(data)) {
-//           setConversations(data);
-//         } else {
-//           console.error("API response for conversations is not an array:", data);
-//           setConversations([]);
-//         }
+//         setConversations(data);
 //         return data;
 //       } catch (error) {
 //         console.error("Failed to fetch conversations", error);
-//         setConversations([]);
 //         return [];
-//       } finally {
-//         setIsLoading(false);
 //       }
 //   }, []);
 
@@ -68,8 +54,7 @@
 //     if (!socket) return;
     
 //     const handleNewMessage = (message: Message) => {
-//         const otherUserId = message.senderId === currentUser.id ? message.receiverId : message.senderId;
-//         const isActiveConversation = activeConversation?.participants.some(p => p.id === otherUserId);
+//         const isActiveConversation = (activeConversation?.participants.some(p => p.id === message.senderId) && activeConversation?.participants.some(p => p.id === message.receiverId));
 
 //         if (isActiveConversation) {
 //             setMessages(prev => [...prev, message]);
@@ -77,6 +62,7 @@
         
 //         // Update conversation list without fetching
 //         setConversations(prev => {
+//             const otherUserId = message.senderId === currentUser.id ? message.receiverId : message.senderId;
 //             const convoIndex = prev.findIndex(c => c.participants.some(p => p.id === otherUserId));
             
 //             if (convoIndex > -1) {
@@ -87,7 +73,7 @@
 //             } else {
 //                 // This case handles receiving a message from a user you haven't chatted with before
 //                 const newConvo = {
-//                     id: `conv-${otherUserId}`, // Will be updated on next fetch
+//                     id: `conv-${otherUserId}`, // Temporary ID, will be updated on next fetch
 //                     participants: [{ id: currentUser.id }, { id: otherUserId }],
 //                     lastMessage: message.text,
 //                     timestamp: message.timestamp,
@@ -134,7 +120,6 @@
 //   }, [currentUser.id, currentUser.name, chukUser.id, socket, clearUnreadMessages]);
   
 //   const handleStartNewConversation = useCallback((targetUser: User) => {
-//     setNewMessageModalOpen(false);
 //     if (targetUser.id === chukUser.id) {
 //         handleSelectConversation({ id: chukUser.id, participants: [{id: currentUser.id}, {id: chukUser.id}], lastMessage: "AI Assistant", timestamp: new Date().toISOString(), messages: [] });
 //         return;
@@ -161,8 +146,6 @@
 //   useEffect(() => {
 //     if (initialTargetUser) {
 //         handleStartNewConversation(initialTargetUser);
-//     } else {
-//         setMessageAreaVisible(false);
 //     }
 //   }, [initialTargetUser, handleStartNewConversation]);
 
@@ -197,6 +180,7 @@
 //     };
 //     setMessages(prev => [...prev, tempMessage]);
 
+//     // Handle Chuk AI chat
 //     if (otherUserId === chukUser.id) {
 //         try {
 //             const { data } = await api.generateAiChat({ prompt: text });
@@ -212,6 +196,7 @@
 //         return;
 //     }
 
+//     // Handle regular user chat
 //     try {
 //         await api.sendMessage(otherUserId, { message: text });
 //         if(activeConversation.id.startsWith('temp-')){
@@ -228,7 +213,7 @@
 //   };
   
 //   return (
-//     <div className="h-full bg-surface rounded-2xl border border-border shadow-md flex overflow-hidden relative">
+//     <div className="h-full bg-surface border border-border shadow-md flex overflow-hidden">
 //        <div 
 //         className={`w-full md:w-[320px] lg:w-[380px] flex-shrink-0 flex flex-col transition-transform duration-300 ease-in-out md:static absolute inset-0 z-10 border-r border-border ${
 //           isMessageAreaVisible ? '-translate-x-full' : 'translate-x-0'
@@ -236,7 +221,6 @@
 //       >
 //         <ConversationList
 //             conversations={conversations}
-//             isLoading={isLoading}
 //             currentUser={currentUser}
 //             chukUser={chukUser}
 //             userMap={userMap}
@@ -277,7 +261,10 @@
 //            <NewMessageModal 
 //                 allUsers={allUsers.filter(u => u.id !== currentUser.id)}
 //                 onClose={() => setNewMessageModalOpen(false)}
-//                 onUserSelect={handleStartNewConversation}
+//                 onUserSelect={(user) => {
+//                     setNewMessageModalOpen(false);
+//                     handleStartNewConversation(user);
+//                 }}
 //            />
 //        )}
 //     </div>
@@ -285,6 +272,8 @@
 // };
 
 // export default ChatPage;
+
+
 
 
 
@@ -311,6 +300,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, chukUser, in
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isMessageAreaVisible, setMessageAreaVisible] = useState(false);
   const [isNewMessageModalOpen, setNewMessageModalOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -348,25 +338,16 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, chukUser, in
             setMessages(prev => [...prev, message]);
         }
         
-        // Update conversation list without fetching
         setConversations(prev => {
             const otherUserId = message.senderId === currentUser.id ? message.receiverId : message.senderId;
             const convoIndex = prev.findIndex(c => c.participants.some(p => p.id === otherUserId));
             
             if (convoIndex > -1) {
                 const updatedConvo = { ...prev[convoIndex], lastMessage: message.text, timestamp: message.timestamp };
-                // Move to top
                 const restConvos = [...prev.slice(0, convoIndex), ...prev.slice(convoIndex + 1)];
                 return [updatedConvo, ...restConvos];
             } else {
-                // This case handles receiving a message from a user you haven't chatted with before
-                const newConvo = {
-                    id: `conv-${otherUserId}`, // Temporary ID, will be updated on next fetch
-                    participants: [{ id: currentUser.id }, { id: otherUserId }],
-                    lastMessage: message.text,
-                    timestamp: message.timestamp,
-                    messages: []
-                };
+                const newConvo = { id: `conv-${otherUserId}`, participants: [{ id: currentUser.id }, { id: otherUserId }], lastMessage: message.text, timestamp: message.timestamp, messages: [] };
                 return [newConvo, ...prev];
             }
         });
@@ -382,18 +363,21 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, chukUser, in
 
   const handleSelectConversation = useCallback(async (conv: Conversation) => {
     setActiveConversation(conv);
+    setIsLoadingMessages(true);
 
     const otherUserId = conv.participants.find(p => p.id !== currentUser.id)?.id;
-    if (!otherUserId) return;
+    if (!otherUserId) {
+        setIsLoadingMessages(false);
+        return;
+    }
     
     clearUnreadMessages(otherUserId);
     socket?.emit('joinRoom', `dm-${[currentUser.id, otherUserId].sort().join('-')}`);
 
     if (otherUserId === chukUser.id) {
-        setMessages([
-            { id: 'chuk-intro', senderId: chukUser.id, receiverId: currentUser.id, text: `Hi ${currentUser.name.split(' ')[0]}! I'm Chuk, your new best friend at Tribe! What's on your mind? 🐣`, timestamp: new Date().toISOString() }
-        ]);
+        setMessages([{ id: 'chuk-intro', senderId: chukUser.id, receiverId: currentUser.id, text: `Hi ${currentUser.name.split(' ')[0]}! I'm Chuk, your new best friend at Tribe! What's on your mind? 🐣`, timestamp: new Date().toISOString() }]);
         setMessageAreaVisible(true);
+        setIsLoadingMessages(false);
         return;
     }
 
@@ -404,6 +388,8 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, chukUser, in
     } catch (error) {
         console.error("Failed to fetch messages", error);
         setMessages([]);
+    } finally {
+        setIsLoadingMessages(false);
     }
   }, [currentUser.id, currentUser.name, chukUser.id, socket, clearUnreadMessages]);
   
@@ -417,13 +403,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, chukUser, in
     if (existingConvo) {
       handleSelectConversation(existingConvo);
     } else {
-      const tempConvo: Conversation = {
-        id: `temp-${targetUser.id}`,
-        participants: [{ id: currentUser.id }, { id: targetUser.id }],
-        messages: [],
-        lastMessage: `Start a conversation with ${targetUser.name}`,
-        timestamp: new Date().toISOString()
-      };
+      const tempConvo: Conversation = { id: `temp-${targetUser.id}`, participants: [{ id: currentUser.id }, { id: targetUser.id }], messages: [], lastMessage: `Start a conversation with ${targetUser.name}`, timestamp: new Date().toISOString() };
       setActiveConversation(tempConvo);
       setMessages([]);
       setMessageAreaVisible(true);
@@ -440,9 +420,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, chukUser, in
   const handleBackToList = () => {
     if (activeConversation) {
       const otherUserId = activeConversation.participants.find(p => p.id !== currentUser.id)?.id;
-      if (otherUserId) {
-        socket?.emit('leaveRoom', `dm-${[currentUser.id, otherUserId].sort().join('-')}`);
-      }
+      if (otherUserId) socket?.emit('leaveRoom', `dm-${[currentUser.id, otherUserId].sort().join('-')}`);
     }
     setActiveConversation(null);
     setMessageAreaVisible(false);
@@ -450,25 +428,15 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, chukUser, in
 
   const handleSendMessage = async (text: string) => {
     if (!activeConversation || isSending) return;
-    
     setIsSending(true);
-
     const otherUserId = activeConversation.participants.find(p => p.id !== currentUser.id)?.id;
     if (!otherUserId) {
         setIsSending(false);
         return;
     }
-    
-    const tempMessage: Message = { 
-        id: `temp-${Date.now()}`, 
-        senderId: currentUser.id, 
-        receiverId: otherUserId,
-        text, 
-        timestamp: new Date().toISOString() 
-    };
+    const tempMessage: Message = { id: `temp-${Date.now()}`, senderId: currentUser.id, receiverId: otherUserId, text, timestamp: new Date().toISOString() };
     setMessages(prev => [...prev, tempMessage]);
 
-    // Handle Chuk AI chat
     if (otherUserId === chukUser.id) {
         try {
             const { data } = await api.generateAiChat({ prompt: text });
@@ -484,7 +452,6 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, chukUser, in
         return;
     }
 
-    // Handle regular user chat
     try {
         await api.sendMessage(otherUserId, { message: text });
         if(activeConversation.id.startsWith('temp-')){
@@ -501,21 +468,13 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, chukUser, in
   };
   
   return (
-    <div className="h-full bg-surface border border-border shadow-md flex overflow-hidden">
+    <div className="h-full bg-surface md:rounded-2xl md:border md:border-border md:shadow-lg flex overflow-hidden relative">
        <div 
-        className={`w-full md:w-[320px] lg:w-[380px] flex-shrink-0 flex flex-col transition-transform duration-300 ease-in-out md:static absolute inset-0 z-10 border-r border-border ${
+        className={`w-full md:w-[320px] lg:w-[380px] flex-shrink-0 flex flex-col transition-transform duration-300 ease-in-out md:static absolute inset-0 z-10 md:border-r md:border-border bg-surface ${
           isMessageAreaVisible ? '-translate-x-full' : 'translate-x-0'
         } md:translate-x-0`}
       >
-        <ConversationList
-            conversations={conversations}
-            currentUser={currentUser}
-            chukUser={chukUser}
-            userMap={userMap}
-            activeConversationId={activeConversation?.id}
-            onSelectConversation={handleSelectConversation}
-            onNewMessage={() => setNewMessageModalOpen(true)}
-        />
+        <ConversationList conversations={conversations} currentUser={currentUser} chukUser={chukUser} userMap={userMap} activeConversationId={activeConversation?.id} onSelectConversation={handleSelectConversation} onNewMessage={() => setNewMessageModalOpen(true)} />
       </div>
       
       <div 
@@ -524,17 +483,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, chukUser, in
         } md:translate-x-0`}
         >
         {activeConversation ? (
-            <MessageArea
-                key={activeConversation.id}
-                conversation={activeConversation}
-                messages={messages}
-                currentUser={currentUser}
-                userMap={userMap}
-                isSending={isSending}
-                onSendMessage={handleSendMessage}
-                onBack={handleBackToList}
-                onViewProfile={onViewProfile}
-            />
+            <MessageArea key={activeConversation.id} conversation={activeConversation} messages={messages} isLoading={isLoadingMessages} currentUser={currentUser} userMap={userMap} isSending={isSending} onSendMessage={handleSendMessage} onBack={handleBackToList} onViewProfile={onViewProfile} />
         ) : (
             <div className="hidden md:flex w-full h-full flex-col items-center justify-center text-center p-8">
                 <div className="w-24 h-24 text-secondary mb-4">
@@ -546,14 +495,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, allUsers, chukUser, in
         )}
        </div>
        {isNewMessageModalOpen && (
-           <NewMessageModal 
-                allUsers={allUsers.filter(u => u.id !== currentUser.id)}
-                onClose={() => setNewMessageModalOpen(false)}
-                onUserSelect={(user) => {
-                    setNewMessageModalOpen(false);
-                    handleStartNewConversation(user);
-                }}
-           />
+           <NewMessageModal allUsers={allUsers.filter(u => u.id !== currentUser.id)} onClose={() => setNewMessageModalOpen(false)} onUserSelect={(user) => { setNewMessageModalOpen(false); handleStartNewConversation(user); }} />
        )}
     </div>
   );

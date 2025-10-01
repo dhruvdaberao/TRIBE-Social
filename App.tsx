@@ -2,6 +2,12 @@
 
 
 
+
+
+
+
+
+
 // import React, { useState, useEffect, useMemo, useCallback } from 'react';
 // import { useAuth } from './contexts/AuthContext';
 // import { useSocket } from './contexts/SocketContext';
@@ -11,7 +17,7 @@
 // // Components
 // import Sidebar from './components/layout/Sidebar';
 // import FeedPage from './components/feed/FeedPage';
-// import ProfilePage from './components/profile/ProfilePage';
+// import { ProfilePage } from './components/profile/ProfilePage';
 // import ChatPage from './components/chat/ChatPage';
 // import DiscoverPage from './components/discover/DiscoverPage';
 // import LoginPage from './components/auth/LoginPage';
@@ -61,16 +67,27 @@
 //         return map;
 //     }, [users]);
 
-//     const populatePost = useCallback((post: any, userMapToUse: Map<string, User>): Post | null => {
-//         const author = userMapToUse.get(post.user);
-//         if (!author) return null;
+//     const populatePost = useCallback((postFromApi: any, userMapToUse: Map<string, User>): Post | null => {
+//         // The backend sends a populated 'user' object. We rename it to 'author' for the frontend.
+//         const { user: author, ...restOfPost } = postFromApi;
+        
+//         if (!author || typeof author !== 'object') {
+//             console.warn("Post with invalid author found and filtered:", postFromApi);
+//             return null;
+//         }
+
 //         return {
-//             ...post,
+//             ...restOfPost,
 //             author,
-//             comments: post.comments ? post.comments.map((comment: any) => ({
-//                 ...comment,
-//                 author: userMapToUse.get(comment.user),
-//             })).filter((c: any) => c.author) : [],
+//             comments: restOfPost.comments ? restOfPost.comments.map((comment: any) => {
+//                 // The backend now sends a populated 'user' object inside the comment.
+//                 // We rename it to 'author' for frontend consistency.
+//                 const { user, ...restOfComment } = comment;
+//                 return {
+//                     ...restOfComment,
+//                     author: user,
+//                 };
+//             }).filter((c: any) => c.author && typeof c.author === 'object') : [], // Filter out comments from deleted/unknown users
 //         };
 //     }, []);
 
@@ -79,6 +96,7 @@
 //             setIsInitialLoading(false);
 //             return;
 //         }
+//         setIsInitialLoading(true);
 //         try {
 //             const [usersData, feedPostsData, tribesData, notificationsData] = await Promise.all([
 //                 api.fetchUsers(),
@@ -87,8 +105,10 @@
 //                 api.fetchNotifications(),
 //             ]);
 
-//             setUsers(usersData.data);
-//             const localUserMap = new Map<string, User>(usersData.data.map((user: User) => [user.id, user]));
+//             const allUsers = usersData.data;
+//             setUsers(allUsers);
+//             const localUserMap = new Map<string, User>(allUsers.map((user: User) => [user.id, user]));
+//             localUserMap.set(CHUK_AI_USER.id, CHUK_AI_USER);
 
 //             const populatedPosts = feedPostsData.data.map((post: any) => populatePost(post, localUserMap)).filter(Boolean);
             
@@ -103,7 +123,8 @@
 //             setNotifications(notificationsData.data);
 
 //         } catch (error) {
-//             console.error("Failed to fetch initial data:", error);
+//             console.error("Failed to fetch initial data: ", error);
+//             toast.error("Could not load data. Please try refreshing.");
 //             if ((error as any)?.response?.status === 401) {
 //                 logout();
 //             }
@@ -141,7 +162,7 @@
 
 //         const handleNewPost = (post: any) => {
 //              // Avoid adding a duplicate if we just added it manually via API response
-//             if (post.user === currentUser?.id && isCreatingPost) return;
+//             if (post.user.id === currentUser?.id && isCreatingPost) return;
 //             const populated = populatePost(post, userMap);
 //             if (populated) setPosts(prev => [populated, ...prev].sort((a: Post, b: Post) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
 //         };
@@ -339,13 +360,32 @@
 //         }
 //     };
     
-//     const handleViewPost = (postId: string) => {
-//         const post = posts.find(p => p.id === postId);
-//         if (post) {
+//     const handleViewPost = async (postId: string) => {
+//         let post = posts.find(p => p.id === postId);
+
+//         if (!post) {
+//             try {
+//                 toast.info("Loading post...");
+//                 const { data } = await api.fetchPost(postId);
+//                 const populatedPost = populatePost(data, userMap);
+//                 if (populatedPost) {
+//                     setPosts(prev => {
+//                         const postExists = prev.some(p => p.id === populatedPost.id);
+//                         return postExists ? prev : [populatedPost, ...prev];
+//                     });
+//                     post = populatedPost;
+//                 }
+//             } catch (error) {
+//                 console.error("Failed to fetch single post:", error);
+//                 toast.error("Could not load the post. It may have been deleted.");
+//                 return;
+//             }
+//         }
+
+//         if (post && post.author) {
 //             handleViewProfile(post.author);
-//             // Future improvement: scroll to the post on the profile page.
 //         } else {
-//             toast.info("Could not find the post. It may have been deleted.");
+//             toast.error("Could not find the post. It may have been deleted.");
 //         }
 //     };
 
@@ -376,8 +416,8 @@
 //     const handleToggleBlock = async (targetUserId: string) => {
 //         if (!currentUser) return;
 //         const originalUser = { ...currentUser };
-//         const isBlocked = currentUser.blockedUsers.includes(targetUserId);
-//         setCurrentUser(prev => prev ? { ...prev, blockedUsers: isBlocked ? prev.blockedUsers.filter(id => id !== targetUserId) : [...prev.blockedUsers, targetUserId]} : null);
+//         const isBlocked = (currentUser.blockedUsers || []).includes(targetUserId);
+//         setCurrentUser(prev => prev ? { ...prev, blockedUsers: isBlocked ? (prev.blockedUsers || []).filter(id => id !== targetUserId) : [...(prev.blockedUsers || []), targetUserId]} : null);
 //         try {
 //             await api.toggleBlock(targetUserId);
 //             toast.success(isBlocked ? "User unblocked." : "User blocked.");
@@ -497,12 +537,12 @@
 
 //     const visiblePosts = useMemo(() => {
 //         if (!currentUser) return [];
-//         return posts.filter(p => !currentUser.blockedUsers.includes(p.author.id) && !p.author.blockedUsers?.includes(currentUser.id));
+//         return posts.filter(p => !(currentUser.blockedUsers || []).includes(p.author.id) && !(p.author.blockedUsers || []).includes(currentUser.id));
 //     }, [posts, currentUser]);
 
 //     const visibleUsers = useMemo(() => {
 //         if (!currentUser) return [];
-//         return users.filter(u => !currentUser.blockedUsers.includes(u.id) && !u.blockedUsers?.includes(currentUser.id));
+//         return users.filter(u => !(currentUser.blockedUsers || []).includes(u.id) && !(u.blockedUsers || []).includes(currentUser.id));
 //     }, [users, currentUser]);
     
 //     if (isAuthLoading) {
@@ -532,7 +572,7 @@
 //     const renderContent = () => {
 //         switch (activeNavItem) {
 //             case 'Home':
-//                 const feedPosts = visiblePosts.filter(p => currentUser.following.includes(p.author.id) || p.author.id === currentUser.id);
+//                 const feedPosts = visiblePosts.filter(p => (currentUser.following || []).includes(p.author.id) || p.author.id === currentUser.id);
 //                 return (
 //                     <>
 //                         <CreatePost currentUser={currentUser} allUsers={visibleUsers} onAddPost={handleAddPost} isPosting={isCreatingPost}/>
@@ -595,6 +635,7 @@
 //                     currentUser={currentUser}
 //                     onSendMessage={handleSendTribeMessage}
 //                     onDeleteMessage={handleDeleteTribeMessage}
+//                     onDeleteTribe={handleDeleteTribe}
 //                     onBack={() => setActiveNavItem('Tribes')}
 //                     onViewProfile={handleViewProfile}
 //                     onEditTribe={(tribe) => setEditingTribe(tribe)}
@@ -608,13 +649,14 @@
 //                     onViewPost={handleViewPost}
 //                 />;
 //             case 'Profile':
-//                 if (!viewedUser || currentUser.blockedUsers.includes(viewedUser.id) || viewedUser.blockedUsers?.includes(currentUser.id)) {
+//                 if (!viewedUser || (currentUser.blockedUsers || []).includes(viewedUser.id) || (viewedUser.blockedUsers || []).includes(currentUser.id)) {
 //                      return <div className="text-center p-8">User not found or is blocked.</div>;
 //                 }
 //                 const userPosts = visiblePosts.filter(p => p.author.id === viewedUser.id);
 //                 return <ProfilePage
 //                     user={viewedUser}
-//                     allUsers={visibleUsers}
+//                     allUsers={users}
+//                     visibleUsers={visibleUsers}
 //                     allTribes={tribes}
 //                     posts={userPosts}
 //                     currentUser={currentUser}
@@ -651,7 +693,7 @@
 //             <main className="pt-16 pb-16 md:pb-0">
 //                 <div className={isFullHeightPage 
 //                     ? 'h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)] md:pl-0' 
-//                     : 'max-w-2xl mx-auto px-4 md:px-6 pt-6'
+//                     : 'max-w-2xl mx-auto px-4 md:px-6 pt-6 pb-24 md:pb-8'
 //                 }>
 //                     {renderContent()}
 //                 </div>
@@ -669,6 +711,8 @@
 // };
 
 // export default App;
+
+
 
 
 
@@ -695,9 +739,10 @@ import TribeDetailPage from './components/tribes/TribeDetailPage';
 import EditTribeModal from './components/tribes/EditTribeModal';
 import CreatePost from './components/feed/CreatePost';
 import NotificationsPage from './components/notifications/NotificationsPage';
+import SettingsPage from './components/settings/SettingsPage';
 import { Toaster, toast } from './components/common/Toast';
 
-export type NavItem = 'Home' | 'Discover' | 'Messages' | 'Tribes' | 'Notifications' | 'Profile' | 'Chuk' | 'TribeDetail';
+export type NavItem = 'Home' | 'Discover' | 'Messages' | 'Tribes' | 'Notifications' | 'Profile' | 'Chuk' | 'TribeDetail' | 'Settings';
 
 const CHUK_AI_USER: User = {
     id: 'chuk-ai',
@@ -719,7 +764,8 @@ const App: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
     const [posts, setPosts] = useState<Post[]>([]);
     const [tribes, setTribes] = useState<Tribe[]>([]);
-    const [isInitialLoading, setIsInitialLoading] = useState(true);
+    const [isDataLoaded, setIsDataLoaded] = useState(false);
+    const [isFetching, setIsFetching] = useState(false);
     const [isCreatingPost, setIsCreatingPost] = useState(false);
     const [isAllPostsLoaded, setIsAllPostsLoaded] = useState(false);
 
@@ -737,35 +783,27 @@ const App: React.FC = () => {
     }, [users]);
 
     const populatePost = useCallback((postFromApi: any, userMapToUse: Map<string, User>): Post | null => {
-        // The backend sends a populated 'user' object. We rename it to 'author' for the frontend.
         const { user: author, ...restOfPost } = postFromApi;
-        
         if (!author || typeof author !== 'object') {
             console.warn("Post with invalid author found and filtered:", postFromApi);
             return null;
         }
-
         return {
             ...restOfPost,
             author,
             comments: restOfPost.comments ? restOfPost.comments.map((comment: any) => {
-                // The backend now sends a populated 'user' object inside the comment.
-                // We rename it to 'author' for frontend consistency.
                 const { user, ...restOfComment } = comment;
-                return {
-                    ...restOfComment,
-                    author: user,
-                };
-            }).filter((c: any) => c.author && typeof c.author === 'object') : [], // Filter out comments from deleted/unknown users
+                return { ...restOfComment, author: user };
+            }).filter((c: any) => c.author && typeof c.author === 'object') : [],
         };
     }, []);
 
     const fetchData = useCallback(async () => {
         if (!currentUser) {
-            setIsInitialLoading(false);
+            setIsDataLoaded(false);
             return;
         }
-        setIsInitialLoading(true);
+        setIsFetching(true);
         try {
             const [usersData, feedPostsData, tribesData, notificationsData] = await Promise.all([
                 api.fetchUsers(),
@@ -773,32 +811,26 @@ const App: React.FC = () => {
                 api.fetchTribes(),
                 api.fetchNotifications(),
             ]);
-
+            
             const allUsers = usersData.data;
             setUsers(allUsers);
             const localUserMap = new Map<string, User>(allUsers.map((user: User) => [user.id, user]));
             localUserMap.set(CHUK_AI_USER.id, CHUK_AI_USER);
 
             const populatedPosts = feedPostsData.data.map((post: any) => populatePost(post, localUserMap)).filter(Boolean);
-            
             setPosts(populatedPosts as Post[]);
             
-            const populatedTribes = tribesData.data.map((tribe: any) => ({
-                ...tribe,
-                messages: [], 
-            }));
-
+            const populatedTribes = tribesData.data.map((tribe: any) => ({ ...tribe, messages: [] }));
             setTribes(populatedTribes);
             setNotifications(notificationsData.data);
+            setIsDataLoaded(true);
 
         } catch (error) {
             console.error("Failed to fetch initial data: ", error);
             toast.error("Could not load data. Please try refreshing.");
-            if ((error as any)?.response?.status === 401) {
-                logout();
-            }
+            if ((error as any)?.response?.status === 401) logout();
         } finally {
-            setIsInitialLoading(false);
+            setIsFetching(false);
         }
     }, [currentUser, logout, populatePost, setNotifications]);
     
@@ -807,10 +839,8 @@ const App: React.FC = () => {
       try {
         const { data } = await api.fetchPosts();
         const populated = data.map((post: any) => populatePost(post, userMap)).filter(Boolean);
-        
         const postMap = new Map(posts.map(p => [p.id, p]));
         (populated as Post[]).forEach(p => postMap.set(p.id, p));
-
         setPosts(Array.from(postMap.values()).sort((a: Post, b: Post) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
         setIsAllPostsLoaded(true);
       } catch (error) {
@@ -818,58 +848,38 @@ const App: React.FC = () => {
       }
     }, [isAllPostsLoaded, userMap, posts, populatePost]);
 
-
     useEffect(() => {
-        if (!isAuthLoading) {
+        if (!isAuthLoading && currentUser) {
             fetchData();
         }
-    }, [fetchData, isAuthLoading]);
+    }, [fetchData, isAuthLoading, currentUser]);
     
-    // --- REAL-TIME EVENT LISTENERS ---
     useEffect(() => {
         if (!socket || !userMap.size) return;
-
         const handleNewPost = (post: any) => {
-             // Avoid adding a duplicate if we just added it manually via API response
             if (post.user.id === currentUser?.id && isCreatingPost) return;
             const populated = populatePost(post, userMap);
             if (populated) setPosts(prev => [populated, ...prev].sort((a: Post, b: Post) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
         };
-
         const handlePostUpdated = (updatedPost: any) => {
             const populated = populatePost(updatedPost, userMap);
             if (populated) setPosts(prev => prev.map(p => p.id === populated.id ? populated : p));
         };
-        
-        const handlePostDeleted = (postId: string) => {
-            setPosts(prev => prev.filter(p => p.id !== postId));
-        };
-        
+        const handlePostDeleted = (postId: string) => setPosts(prev => prev.filter(p => p.id !== postId));
         const handleNewTribeMessage = (message: TribeMessage) => {
             if(viewedTribe && viewedTribe.id === message.tribeId) {
                 const sender = userMap.get(message.senderId!);
-                if (sender) {
-                     setViewedTribe(prev => prev ? { ...prev, messages: [...prev.messages, {...message, sender}] } : null);
-                }
+                if (sender) setViewedTribe(prev => prev ? { ...prev, messages: [...prev.messages, {...message, sender}] } : null);
             }
         };
-        
         const handleTribeMessageDeleted = ({ tribeId, messageId }: { tribeId: string, messageId: string }) => {
-            if(viewedTribe && viewedTribe.id === tribeId) {
-                setViewedTribe(prev => prev ? { ...prev, messages: prev.messages.filter(m => m.id !== messageId) } : null);
-            }
+            if(viewedTribe && viewedTribe.id === tribeId) setViewedTribe(prev => prev ? { ...prev, messages: prev.messages.filter(m => m.id !== messageId) } : null);
         };
-
         const handleUserUpdated = (updatedUser: User) => {
             setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
-            if (currentUser?.id === updatedUser.id) {
-                setCurrentUser(updatedUser);
-            }
-            if (viewedUser?.id === updatedUser.id) {
-                setViewedUser(updatedUser);
-            }
+            if (currentUser?.id === updatedUser.id) setCurrentUser(updatedUser);
+            if (viewedUser?.id === updatedUser.id) setViewedUser(updatedUser);
         };
-        
         const handleTribeDeleted = (tribeId: string) => {
             setTribes(prev => prev.filter(t => t.id !== tribeId));
             if (viewedTribe?.id === tribeId) {
@@ -896,25 +906,20 @@ const App: React.FC = () => {
             socket.off('userUpdated', handleUserUpdated);
             socket.off('tribeDeleted', handleTribeDeleted);
         };
-
     }, [socket, userMap, populatePost, currentUser?.id, setCurrentUser, viewedUser?.id, viewedTribe, isCreatingPost]);
     
     const handleSelectItem = (item: NavItem) => {
         setChatTarget(null);
         if (item === 'Profile') {
             setViewedUser(currentUser);
-        } else {
+        } else if (item !== 'Settings') {
             setViewedUser(null);
         }
-        if (item !== 'TribeDetail') {
-            setViewedTribe(null);
-        }
-        
+        if (item !== 'TribeDetail') setViewedTribe(null);
         if (item === 'Chuk') {
             handleStartConversation(CHUK_AI_USER);
             return;
         }
-        
         setActiveNavItem(item);
     };
 
@@ -928,13 +933,10 @@ const App: React.FC = () => {
         setActiveNavItem('Messages');
     };
 
-    // --- Post Handlers ---
     const handleAddPost = async (content: string, imageUrl?: string) => {
         if (!currentUser) return;
         setIsCreatingPost(true);
         try {
-            // API call will trigger a 'newPost' socket event for everyone,
-            // including the current user, so no immediate state update is needed here.
             await api.createPost({ content, imageUrl });
         } catch (error) {
             console.error("Failed to add post:", error);
@@ -946,18 +948,15 @@ const App: React.FC = () => {
 
     const handleLikePost = async (postId: string) => {
         if (!currentUser) return;
-        // Optimistic update
         const originalPosts = posts;
         setPosts(prev => prev.map(p => {
             if (p.id === postId) {
                 const isLiked = p.likes.includes(currentUser.id);
-                const newLikes = isLiked ? p.likes.filter(id => id !== currentUser.id) : [...p.likes, currentUser.id];
-                return { ...p, likes: newLikes };
+                return { ...p, likes: isLiked ? p.likes.filter(id => id !== currentUser.id) : [...p.likes, currentUser.id] };
             }
             return p;
         }));
         try {
-            // API call will trigger a 'postUpdated' socket event
             await api.likePost(postId);
         } catch (error) {
             console.error("Failed to like post:", error);
@@ -970,15 +969,12 @@ const App: React.FC = () => {
         if (!currentUser) return;
         const tempCommentId = `temp-${Date.now()}`;
         const tempComment: Comment = { id: tempCommentId, author: currentUser, text, timestamp: new Date().toISOString() };
-        // Optimistic update
         setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments: [...p.comments, tempComment] } : p));
         try {
-            // API call will trigger a 'postUpdated' socket event
             await api.commentOnPost(postId, { text });
         } catch (error) {
             console.error("Failed to comment:", error);
             toast.error("Failed to post comment.");
-            // Revert on error
             setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments: p.comments.filter(c => c.id !== tempCommentId) } : p));
         }
     };
@@ -986,10 +982,8 @@ const App: React.FC = () => {
     const handleDeletePost = async (postId: string) => {
         if (!currentUser) return;
         const originalPosts = posts;
-        // Optimistic update
         setPosts(prev => prev.filter(p => p.id !== postId));
         try {
-            // API call will trigger a 'postDeleted' socket event
             await api.deletePost(postId);
         } catch (error) {
             console.error("Failed to delete post:", error);
@@ -1003,7 +997,6 @@ const App: React.FC = () => {
         const originalPosts = posts;
         setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments: p.comments.filter(c => c.id !== commentId) } : p));
         try {
-            // API call will trigger a 'postUpdated' socket event
             await api.deleteComment(postId, commentId);
         } catch (error) {
             console.error("Failed to delete comment:", error);
@@ -1031,7 +1024,6 @@ const App: React.FC = () => {
     
     const handleViewPost = async (postId: string) => {
         let post = posts.find(p => p.id === postId);
-
         if (!post) {
             try {
                 toast.info("Loading post...");
@@ -1050,19 +1042,13 @@ const App: React.FC = () => {
                 return;
             }
         }
-
-        if (post && post.author) {
-            handleViewProfile(post.author);
-        } else {
-            toast.error("Could not find the post. It may have been deleted.");
-        }
+        if (post?.author) handleViewProfile(post.author);
+        else toast.error("Could not find the post. It may have been deleted.");
     };
 
-    // --- User Handlers ---
     const handleUpdateUser = async (updatedUserData: Partial<User>) => {
         if (!currentUser) return;
         try {
-            // API call will trigger a 'userUpdated' socket event
             await api.updateProfile(updatedUserData);
         } catch (error) {
             console.error("Failed to update user:", error);
@@ -1071,14 +1057,33 @@ const App: React.FC = () => {
     
     const handleToggleFollow = async (targetUserId: string) => {
         if (!currentUser || currentUser.id === targetUserId) return;
-        // Optimistic Update is handled by the 'userUpdated' socket event
+        const originalCurrentUser = { ...currentUser };
+        const originalViewedUser = viewedUser ? { ...viewedUser } : null;
+        const isFollowing = currentUser.following.includes(targetUserId);
+
+        setCurrentUser(prev => prev ? { ...prev, following: isFollowing ? prev.following.filter(id => id !== targetUserId) : [...prev.following, targetUserId] } : null);
+
+        if (viewedUser) {
+            setViewedUser(prev => {
+                if (!prev) return null;
+                if (prev.id === targetUserId) {
+                    const newFollowers = isFollowing ? prev.followers.filter(id => id !== currentUser.id) : [...prev.followers, currentUser.id];
+                    return { ...prev, followers: newFollowers };
+                }
+                if (prev.id === currentUser.id) {
+                    const newFollowing = isFollowing ? prev.following.filter(id => id !== targetUserId) : [...prev.following, targetUserId];
+                    return { ...prev, following: newFollowing };
+                }
+                return prev;
+            });
+        }
         try {
             await api.toggleFollow(targetUserId);
         } catch(error) {
             console.error('Failed to toggle follow', error);
-            toast.error("Action failed. Please try again.");
-            // Re-fetch data on failure to ensure consistency
-            fetchData();
+            toast.error("Action failed. Reverting.");
+            setCurrentUser(originalCurrentUser);
+            if (originalViewedUser) setViewedUser(originalViewedUser);
         }
     };
 
@@ -1110,7 +1115,6 @@ const App: React.FC = () => {
         }
     };
 
-    // --- Tribe Handlers ---
     const handleJoinToggle = async (tribeId: string) => {
         if (!currentUser) return;
         try {
@@ -1138,15 +1142,9 @@ const App: React.FC = () => {
             clearUnreadTribe(tribe.id);
             setViewedTribe({ ...tribe, messages: [] });
             setActiveNavItem('TribeDetail');
-            
             socket?.emit('joinRoom', `tribe-${tribe.id}`);
-
             const { data: messages } = await api.fetchTribeMessages(tribe.id);
-            const populatedMessages = messages.map((msg: any) => ({
-                ...msg,
-                sender: userMap.get(msg.sender)
-            })).filter((m: TribeMessage) => m.sender);
-
+            const populatedMessages = messages.map((msg: any) => ({ ...msg, sender: userMap.get(msg.sender) })).filter((m: TribeMessage) => m.sender);
             setViewedTribe(prev => prev ? { ...prev, messages: populatedMessages } : null);
         } catch (error) {
             console.error("Failed to fetch tribe messages:", error);
@@ -1169,7 +1167,6 @@ const App: React.FC = () => {
     const handleSendTribeMessage = async (tribeId: string, text: string, imageUrl?: string) => {
         if (!currentUser || !viewedTribe) return;
         try {
-            // API call triggers 'newTribeMessage' socket event
             await api.sendTribeMessage(tribeId, { text, imageUrl });
         } catch (error) {
             console.error("Failed to send tribe message:", error);
@@ -1178,26 +1175,20 @@ const App: React.FC = () => {
     
     const handleDeleteTribeMessage = async (tribeId: string, messageId: string) => {
         const originalMessages = viewedTribe?.messages || [];
-        if (viewedTribe) {
-             setViewedTribe(prev => prev ? { ...prev, messages: prev.messages.filter(m => m.id !== messageId) } : null);
-        }
+        if (viewedTribe) setViewedTribe(prev => prev ? { ...prev, messages: prev.messages.filter(m => m.id !== messageId) } : null);
         try {
-            // API call triggers 'tribeMessageDeleted' socket event
             await api.deleteTribeMessage(tribeId, messageId);
         } catch (error) {
             console.error("Failed to delete tribe message", error);
             toast.error("Could not delete message.");
-             if (viewedTribe) {
-                setViewedTribe(prev => prev ? { ...prev, messages: originalMessages } : null);
-            }
+             if (viewedTribe) setViewedTribe(prev => prev ? { ...prev, messages: originalMessages } : null);
         }
     }
 
     const handleDeleteTribe = async (tribeId: string) => {
         try {
-            // API call triggers 'tribeDeleted' socket event
             await api.deleteTribe(tribeId);
-            setEditingTribe(null); // Close the modal on success
+            setEditingTribe(null);
         } catch (error) {
             console.error("Failed to delete tribe", error);
             toast.error("Could not delete tribe.");
@@ -1215,28 +1206,16 @@ const App: React.FC = () => {
     }, [users, currentUser]);
     
     if (isAuthLoading) {
-        return (
-              <div className="min-h-screen bg-background flex flex-col items-center justify-center">
-                <img src="/duckload.gif" alt="Loading..." className="w-24 h-24" />
-                <h1 className="mt-4 text-xl font-semibold text-primary">Loading...</h1>
-             </div>
-        );
+        return <div className="min-h-screen bg-background flex flex-col items-center justify-center"><img src="/duckload.gif" alt="Loading..." className="w-24 h-24" /><h1 className="mt-4 text-xl font-semibold text-primary">Loading...</h1></div>;
     }
     
-    if (!currentUser) {
-        return <LoginPage />;
-    }
+    if (!currentUser) return <LoginPage />;
     
-    if (isInitialLoading) {
-        return (
-            <div className="min-h-screen bg-background flex flex-col items-center justify-center">
-                <img src="/duckload.gif" alt="Loading..." className="w-24 h-24" />
-                <h1 className="mt-4 text-xl font-semibold text-primary">Waking up the server...</h1>
-            </div>
-        );
+    if (!isDataLoaded && isFetching) {
+        return <div className="min-h-screen bg-background flex flex-col items-center justify-center"><img src="/duckload.gif" alt="Loading..." className="w-24 h-24" /><h1 className="mt-4 text-xl font-semibold text-primary">Waking up the server...</h1></div>;
     }
 
-    const isFullHeightPage = activeNavItem === 'Messages' || activeNavItem === 'TribeDetail';
+    const isFullHeightPage = ['Messages', 'TribeDetail', 'Settings'].includes(activeNavItem);
 
     const renderContent = () => {
         switch (activeNavItem) {
@@ -1245,136 +1224,46 @@ const App: React.FC = () => {
                 return (
                     <>
                         <CreatePost currentUser={currentUser} allUsers={visibleUsers} onAddPost={handleAddPost} isPosting={isCreatingPost}/>
-                        <FeedPage
-                            posts={feedPosts}
-                            currentUser={currentUser}
-                            allUsers={visibleUsers}
-                            allTribes={tribes}
-                            onLikePost={handleLikePost}
-                            onCommentPost={handleCommentPost}
-                            onDeletePost={handleDeletePost}
-                            onDeleteComment={handleDeleteComment}
-                            onViewProfile={handleViewProfile}
-                            onSharePost={handleSharePost}
-                        />
+                        <FeedPage posts={feedPosts} currentUser={currentUser} allUsers={visibleUsers} allTribes={tribes} onLikePost={handleLikePost} onCommentPost={handleCommentPost} onDeletePost={handleDeletePost} onDeleteComment={handleDeleteComment} onViewProfile={handleViewProfile} onSharePost={handleSharePost} />
                     </>
                 );
             case 'Discover':
-                return <DiscoverPage
-                    posts={visiblePosts}
-                    users={visibleUsers}
-                    tribes={tribes}
-                    currentUser={currentUser}
-                    onLikePost={handleLikePost}
-                    onCommentPost={handleCommentPost}
-                    onDeletePost={handleDeletePost}
-                    onDeleteComment={handleDeleteComment}
-                    onToggleFollow={handleToggleFollow}
-                    onViewProfile={handleViewProfile}
-                    onViewTribe={handleViewTribe}
-                    onJoinToggle={handleJoinToggle}
-                    onEditTribe={(tribe) => setEditingTribe(tribe)}
-                    onSharePost={handleSharePost}
-                    onLoadMore={fetchAllPostsForDiscover}
-                />;
+                return <DiscoverPage posts={visiblePosts} users={visibleUsers} tribes={tribes} currentUser={currentUser} onLikePost={handleLikePost} onCommentPost={handleCommentPost} onDeletePost={handleDeletePost} onDeleteComment={handleDeleteComment} onToggleFollow={handleToggleFollow} onViewProfile={handleViewProfile} onViewTribe={handleViewTribe} onJoinToggle={handleJoinToggle} onEditTribe={(tribe) => setEditingTribe(tribe)} onSharePost={handleSharePost} onLoadMore={fetchAllPostsForDiscover} />;
             case 'Messages':
-                return <ChatPage 
-                    currentUser={currentUser}
-                    allUsers={visibleUsers}
-                    chukUser={CHUK_AI_USER}
-                    initialTargetUser={chatTarget}
-                    onViewProfile={handleViewProfile}
-                    onSharePost={handleSharePost}
-                />;
+                return <ChatPage currentUser={currentUser} allUsers={visibleUsers} chukUser={CHUK_AI_USER} initialTargetUser={chatTarget} onViewProfile={handleViewProfile} onSharePost={handleSharePost} />;
             case 'Tribes':
-                return <TribesPage 
-                    tribes={tribes}
-                    currentUser={currentUser}
-                    onJoinToggle={handleJoinToggle}
-                    onCreateTribe={handleCreateTribe}
-                    onViewTribe={handleViewTribe}
-                    onEditTribe={(tribe) => setEditingTribe(tribe)}
-                />;
+                return <TribesPage tribes={tribes} currentUser={currentUser} onJoinToggle={handleJoinToggle} onCreateTribe={handleCreateTribe} onViewTribe={handleViewTribe} onEditTribe={(tribe) => setEditingTribe(tribe)} />;
             case 'TribeDetail':
-                if (!viewedTribe) {
-                     return <div className="text-center p-8">Tribe not found. Go back to discover more tribes.</div>;
-                }
-                return <TribeDetailPage
-                    tribe={viewedTribe}
-                    currentUser={currentUser}
-                    onSendMessage={handleSendTribeMessage}
-                    onDeleteMessage={handleDeleteTribeMessage}
-                    onDeleteTribe={handleDeleteTribe}
-                    onBack={() => setActiveNavItem('Tribes')}
-                    onViewProfile={handleViewProfile}
-                    onEditTribe={(tribe) => setEditingTribe(tribe)}
-                    onJoinToggle={handleJoinToggle}
-                />;
+                if (!viewedTribe) return <div className="text-center p-8">Tribe not found. Go back to discover more tribes.</div>;
+                return <TribeDetailPage tribe={viewedTribe} currentUser={currentUser} onSendMessage={handleSendTribeMessage} onDeleteMessage={handleDeleteTribeMessage} onDeleteTribe={handleDeleteTribe} onBack={() => setActiveNavItem('Tribes')} onViewProfile={handleViewProfile} onEditTribe={(tribe) => setEditingTribe(tribe)} onJoinToggle={handleJoinToggle} />;
             case 'Notifications':
-                return <NotificationsPage 
-                    notifications={notifications} 
-                    onViewProfile={handleViewProfile}
-                    onViewMessage={handleStartConversation}
-                    onViewPost={handleViewPost}
-                />;
+                return <NotificationsPage notifications={notifications} onViewProfile={handleViewProfile} onViewMessage={handleStartConversation} onViewPost={handleViewPost} />;
             case 'Profile':
                 if (!viewedUser || (currentUser.blockedUsers || []).includes(viewedUser.id) || (viewedUser.blockedUsers || []).includes(currentUser.id)) {
                      return <div className="text-center p-8">User not found or is blocked.</div>;
                 }
                 const userPosts = visiblePosts.filter(p => p.author.id === viewedUser.id);
-                return <ProfilePage
-                    user={viewedUser}
-                    allUsers={users}
-                    visibleUsers={visibleUsers}
-                    allTribes={tribes}
-                    posts={userPosts}
-                    currentUser={currentUser}
-                    onLikePost={handleLikePost}
-                    onCommentPost={handleCommentPost}
-                    onDeletePost={handleDeletePost}
-                    onDeleteComment={handleDeleteComment}
-                    onViewProfile={handleViewProfile}
-                    onUpdateUser={handleUpdateUser}
-                    onAddPost={handleAddPost}
-                    onToggleFollow={handleToggleFollow}
-                    onToggleBlock={handleToggleBlock}
-                    onStartConversation={handleStartConversation}
-                    onLogout={logout}
-                    onDeleteAccount={handleDeleteAccount}
-                    onSharePost={handleSharePost}
-                />;
+                return <ProfilePage user={viewedUser} allUsers={users} visibleUsers={visibleUsers} allTribes={tribes} posts={userPosts} currentUser={currentUser} onLikePost={handleLikePost} onCommentPost={handleCommentPost} onDeletePost={handleDeletePost} onDeleteComment={handleDeleteComment} onViewProfile={handleViewProfile} onUpdateUser={handleUpdateUser} onAddPost={handleAddPost} onToggleFollow={handleToggleFollow} onStartConversation={handleStartConversation} onNavigate={handleSelectItem} onSharePost={handleSharePost} />;
+            case 'Settings':
+                 return <SettingsPage currentUser={currentUser} onLogout={logout} onDeleteAccount={handleDeleteAccount} onToggleBlock={handleToggleBlock} allUsers={users} onBack={() => handleSelectItem('Profile')} />;
             default:
                 return <div>Page not found</div>;
         }
     };
 
     return (
-        <div className="bg-background min-h-screen text-primary">
+        <div className="bg-background min-h-screen text-primary overflow-hidden">
             <Toaster />
-            <Sidebar 
-                activeItem={activeNavItem} 
-                onSelectItem={handleSelectItem} 
-                currentUser={currentUser}
-                unreadMessageCount={unreadMessageCount}
-                unreadTribeCount={unreadTribeCount}
-                unreadNotificationCount={unreadNotificationCount}
-            />
+            <Sidebar activeItem={activeNavItem} onSelectItem={handleSelectItem} currentUser={currentUser} unreadMessageCount={unreadMessageCount} unreadTribeCount={unreadTribeCount} unreadNotificationCount={unreadNotificationCount} />
             <main className="pt-16 pb-16 md:pb-0">
                 <div className={isFullHeightPage 
-                    ? 'h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)] md:pl-0' 
+                    ? 'h-[calc(100vh-4rem)] md:pl-0' 
                     : 'max-w-2xl mx-auto px-4 md:px-6 pt-6 pb-24 md:pb-8'
                 }>
                     {renderContent()}
                 </div>
             </main>
-            {editingTribe && (
-              <EditTribeModal
-                tribe={editingTribe}
-                onClose={() => setEditingTribe(null)}
-                onSave={handleEditTribe}
-                onDelete={handleDeleteTribe}
-              />
-            )}
+            {editingTribe && <EditTribeModal tribe={editingTribe} onClose={() => setEditingTribe(null)} onSave={handleEditTribe} onDelete={handleDeleteTribe} />}
         </div>
     );
 };

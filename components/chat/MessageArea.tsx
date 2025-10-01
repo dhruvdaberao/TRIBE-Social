@@ -1,5 +1,9 @@
 
 
+
+
+
+
 // import React, { useState, useRef, useEffect } from 'react';
 // import { Conversation, User, Message } from '../../types';
 // import UserAvatar from '../common/UserAvatar';
@@ -32,7 +36,9 @@
 //   }, [messages]);
 
 //   useEffect(() => {
-//     if (!socket) return;
+//     if (!socket || !otherParticipantId || otherParticipantId === 'chuk-ai') return;
+//     const roomName = `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`;
+    
 //     const handleTyping = ({ userId }: { userId: string }) => {
 //       if (userId === otherParticipantId) {
 //         setIsTyping(true);
@@ -43,24 +49,31 @@
 //         setIsTyping(false);
 //       }
 //     };
+    
 //     socket.on('userTyping', handleTyping);
 //     socket.on('userStoppedTyping', handleStopTyping);
 
 //     return () => {
 //       socket.off('userTyping', handleTyping);
 //       socket.off('userStoppedTyping', handleStopTyping);
+//       // Clean up typing state on component unmount
+//       if (typingTimeoutRef.current) {
+//           clearTimeout(typingTimeoutRef.current);
+//           socket.emit('stopTyping', { roomId: roomName, userId: currentUser.id });
+//       }
 //     };
-//   }, [socket, otherParticipantId]);
+//   }, [socket, otherParticipantId, currentUser.id]);
 
 //   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 //     setInputText(e.target.value);
-//     if (socket && otherParticipantId) {
+//     if (socket && otherParticipantId && otherParticipantId !== 'chuk-ai') {
+//       const roomName = `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`;
 //       if (!typingTimeoutRef.current) {
-//         socket.emit('typing', { roomId: `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`, userId: currentUser.id });
+//         socket.emit('typing', { roomId: roomName, userId: currentUser.id });
 //       }
 //       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 //       typingTimeoutRef.current = setTimeout(() => {
-//         socket.emit('stopTyping', { roomId: `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`, userId: currentUser.id });
+//         socket.emit('stopTyping', { roomId: roomName, userId: currentUser.id });
 //         typingTimeoutRef.current = null;
 //       }, 2000);
 //     }
@@ -71,9 +84,10 @@
 //     if (inputText.trim()) {
 //       onSendMessage(inputText);
 //       setInputText('');
-//       if (socket && otherParticipantId) {
+//       if (socket && otherParticipantId && otherParticipantId !== 'chuk-ai') {
+//         const roomName = `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`;
 //         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-//         socket.emit('stopTyping', { roomId: `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`, userId: currentUser.id });
+//         socket.emit('stopTyping', { roomId: roomName, userId: currentUser.id });
 //         typingTimeoutRef.current = null;
 //       }
 //     }
@@ -126,7 +140,7 @@
 //             return (
 //               <div key={message.id} className={`flex items-end gap-2.5 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
 //                 {!isCurrentUser && (
-//                     <div className="w-8 h-8 rounded-full flex-shrink-0 self-start">
+//                     <div className="w-8 h-8 rounded-full flex-shrink-0 self-start" onClick={() => sender && onViewProfile(sender)}>
 //                       <UserAvatar user={sender || null} />
 //                     </div>
 //                 )}
@@ -185,6 +199,7 @@
 
 
 
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Conversation, User, Message } from '../../types';
 import UserAvatar from '../common/UserAvatar';
@@ -193,6 +208,7 @@ import { useSocket } from '../../contexts/SocketContext';
 interface MessageAreaProps {
   conversation: Conversation;
   messages: Message[];
+  isLoading: boolean;
   currentUser: User;
   userMap: Map<string, User>;
   isSending: boolean;
@@ -201,7 +217,7 @@ interface MessageAreaProps {
   onViewProfile: (user: User) => void;
 }
 
-export const MessageArea: React.FC<MessageAreaProps> = ({ conversation, messages, currentUser, userMap, isSending, onSendMessage, onBack, onViewProfile }) => {
+export const MessageArea: React.FC<MessageAreaProps> = ({ conversation, messages, isLoading, currentUser, userMap, isSending, onSendMessage, onBack, onViewProfile }) => {
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const otherParticipantId = conversation.participants.find(p => p.id !== currentUser.id)?.id;
@@ -214,47 +230,34 @@ export const MessageArea: React.FC<MessageAreaProps> = ({ conversation, messages
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, isLoading]);
 
   useEffect(() => {
-    if (!socket || !otherParticipantId || otherParticipantId === 'chuk-ai') return;
-    const roomName = `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`;
-    
+    if (!socket) return;
     const handleTyping = ({ userId }: { userId: string }) => {
-      if (userId === otherParticipantId) {
-        setIsTyping(true);
-      }
+      if (userId === otherParticipantId) setIsTyping(true);
     };
     const handleStopTyping = ({ userId }: { userId: string }) => {
-       if (userId === otherParticipantId) {
-        setIsTyping(false);
-      }
+       if (userId === otherParticipantId) setIsTyping(false);
     };
-    
     socket.on('userTyping', handleTyping);
     socket.on('userStoppedTyping', handleStopTyping);
 
     return () => {
       socket.off('userTyping', handleTyping);
       socket.off('userStoppedTyping', handleStopTyping);
-      // Clean up typing state on component unmount
-      if (typingTimeoutRef.current) {
-          clearTimeout(typingTimeoutRef.current);
-          socket.emit('stopTyping', { roomId: roomName, userId: currentUser.id });
-      }
     };
-  }, [socket, otherParticipantId, currentUser.id]);
+  }, [socket, otherParticipantId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputText(e.target.value);
-    if (socket && otherParticipantId && otherParticipantId !== 'chuk-ai') {
-      const roomName = `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`;
+    if (socket && otherParticipantId) {
       if (!typingTimeoutRef.current) {
-        socket.emit('typing', { roomId: roomName, userId: currentUser.id });
+        socket.emit('typing', { roomId: `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`, userId: currentUser.id });
       }
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
-        socket.emit('stopTyping', { roomId: roomName, userId: currentUser.id });
+        socket.emit('stopTyping', { roomId: `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`, userId: currentUser.id });
         typingTimeoutRef.current = null;
       }, 2000);
     }
@@ -265,10 +268,9 @@ export const MessageArea: React.FC<MessageAreaProps> = ({ conversation, messages
     if (inputText.trim()) {
       onSendMessage(inputText);
       setInputText('');
-      if (socket && otherParticipantId && otherParticipantId !== 'chuk-ai') {
-        const roomName = `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`;
+      if (socket && otherParticipantId) {
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-        socket.emit('stopTyping', { roomId: roomName, userId: currentUser.id });
+        socket.emit('stopTyping', { roomId: `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`, userId: currentUser.id });
         typingTimeoutRef.current = null;
       }
     }
@@ -292,7 +294,7 @@ export const MessageArea: React.FC<MessageAreaProps> = ({ conversation, messages
 
   return (
     <div className="flex flex-col h-full bg-background">
-      <div className="flex items-center p-3 border-b border-border bg-surface flex-shrink-0">
+      <div className="flex items-center p-3 border-b border-border bg-surface flex-shrink-0 z-10">
         <button onClick={onBack} className="md:hidden p-2 mr-2 text-primary">
             <BackIcon />
         </button>
@@ -313,42 +315,44 @@ export const MessageArea: React.FC<MessageAreaProps> = ({ conversation, messages
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="flex flex-col space-y-2">
-          {messages.map(message => {
-            const isCurrentUser = message.senderId === currentUser.id;
-            const sender = isCurrentUser ? currentUser : userMap.get(message.senderId);
-            const sentAt = new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-            return (
-              <div key={message.id} className={`flex items-end gap-2.5 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
-                {!isCurrentUser && (
-                    <div className="w-8 h-8 rounded-full flex-shrink-0 self-start" onClick={() => sender && onViewProfile(sender)}>
-                      <UserAvatar user={sender || null} />
+        {isLoading ? (
+            <div className="w-full h-full flex items-center justify-center">
+                <img src="/duckload.gif" alt="Loading messages..." className="w-16 h-16" />
+            </div>
+        ) : (
+            <div className="flex flex-col space-y-2">
+            {messages.map(message => {
+                const isCurrentUser = message.senderId === currentUser.id;
+                const sender = isCurrentUser ? currentUser : userMap.get(message.senderId);
+                const sentAt = new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+                return (
+                <div key={message.id} className={`flex items-end gap-2.5 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+                    {!isCurrentUser && (
+                        <div className="w-8 h-8 rounded-full flex-shrink-0 self-start">
+                        <UserAvatar user={sender || null} />
+                        </div>
+                    )}
+                    <div className={`flex flex-col w-full max-w-xs lg:max-w-md ${isCurrentUser ? 'items-end' : 'items-start'}`}>
+                        <div className={`px-4 py-2.5 rounded-xl break-words ${isCurrentUser ? 'bg-accent text-accent-text' : 'bg-surface text-primary shadow-sm'}`}>
+                            {message.imageUrl && <img src={message.imageUrl} alt="Shared content" className="mb-2 rounded-lg w-full" />}
+                            <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
+                        </div>
+                        <p className="text-xs text-secondary mt-1.5 px-1">{sentAt}</p>
                     </div>
-                )}
-                <div className={`flex flex-col w-full max-w-xs lg:max-w-md ${isCurrentUser ? 'items-end' : 'items-start'}`}>
-                    <div className={`px-4 py-2.5 rounded-xl break-words ${isCurrentUser ? 'bg-accent text-accent-text' : 'bg-surface text-primary shadow-sm'}`}>
-                        {message.imageUrl && (
-                          <img src={message.imageUrl} alt="Shared content" className="mb-2 rounded-lg w-full" />
-                        )}
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
-                    </div>
-                    <p className="text-xs text-secondary mt-1.5 px-1">{sentAt}</p>
                 </div>
-              </div>
-            );
-          })}
-           {messages.length === 0 && (
-             <div className="text-center text-secondary p-8">
-                  <p>This is the beginning of your conversation with {otherParticipant.name}.</p>
-              </div>
-           )}
-           {isSending && otherParticipant.id !== 'chuk-ai' && (
-             <div className="flex justify-end">
-                <p className="text-xs text-secondary mt-1.5 px-1 italic">Sending...</p>
-             </div>
-           )}
-           <div ref={messagesEndRef} />
-        </div>
+                );
+            })}
+            {messages.length === 0 && (
+                <div className="text-center text-secondary p-8">
+                    <p>This is the beginning of your conversation with {otherParticipant.name}.</p>
+                </div>
+            )}
+            {isSending && otherParticipant.id !== 'chuk-ai' && (
+                <div className="flex justify-end"><p className="text-xs text-secondary mt-1.5 px-1 italic">Sending...</p></div>
+            )}
+            <div ref={messagesEndRef} />
+            </div>
+        )}
       </div>
 
       <div className="p-4 border-t border-border bg-surface flex-shrink-0">

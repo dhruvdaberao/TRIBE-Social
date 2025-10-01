@@ -99,8 +99,6 @@
 
 
 
-
-
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
@@ -120,53 +118,60 @@ import { initializeSocket } from './socketManager.js';
 dotenv.config();
 
 const startServer = async () => {
+  console.log("----------------------------------");
+  console.log("🚀 Starting Tribe Backend Server...");
+  
   try {
+    console.log("1. Attempting to connect to MongoDB...");
     await connectDB();
+    console.log("✅ MongoDB connected successfully.");
 
     const app = express();
     const httpServer = createServer(app);
 
     const allowedOrigins = [
-      'https://tribe-social.vercel.app', 
+      'https://tribe-social.vercel.app',
       'https://tribe-social-psi.vercel.app',
-      'https://tribe-8i1h.vercel.app',       
-      'https://tribals.vercel.app',          
-      'http://localhost:5173',               
-      'http://localhost:3000',
-      'http://127.0.0.1:5500' // For VS Code Live Server
+      'https://tribe-8i1h.vercel.app',
+      'https://tribals.vercel.app',
+      'http://localhost:5173',
+      'http://localhost:3000'
     ];
 
     const corsOptions = {
       origin: (origin, callback) => {
-        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin || allowedOrigins.includes(origin)) {
           callback(null, true);
         } else {
-          console.warn(`CORS blocked for origin: ${origin}`);
+          console.error(`CORS Error: Origin ${origin} not allowed.`);
           callback(new Error('Not allowed by CORS'));
         }
       },
-      methods: ["GET", "POST", "PUT", "DELETE"],
       credentials: true,
     };
+    
+    console.log("2. Configuring CORS and Express middleware...");
+    app.use(cors(corsOptions));
+    app.use(express.json({ limit: '50mb' }));
+    console.log("✅ Middleware configured.");
 
+    console.log("3. Initializing Socket.IO...");
     const io = new Server(httpServer, {
       pingTimeout: 60000,
       cors: corsOptions,
     });
-
-    // Make io and onlineUsers accessible in routes
     app.set('io', io);
     const onlineUsers = initializeSocket(io);
-
-    app.use(cors(corsOptions));
-    app.use(express.json({ limit: '50mb' }));
-
+    console.log("✅ Socket.IO initialized.");
+    
     app.use((req, res, next) => {
       req.io = io;
       req.onlineUsers = onlineUsers;
       next();
     });
-
+    
+    console.log("4. Registering API routes...");
     app.use('/api/auth', authRoutes);
     app.use('/api/posts', postRoutes);
     app.use('/api/users', userRoutes);
@@ -174,16 +179,25 @@ const startServer = async () => {
     app.use('/api/tribes', tribeRoutes);
     app.use('/api/notifications', notificationRoutes);
     app.use('/api/ai', aiRoutes);
+    console.log("✅ API routes registered.");
 
     app.get('/', (req, res) => {
       res.send('Tribe API is running...');
     });
 
     const PORT = process.env.PORT || 5001;
-    httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    httpServer.listen(PORT, () => {
+        console.log("----------------------------------");
+        console.log(`🎉 Server is live and listening on port ${PORT}`);
+        console.log("----------------------------------");
+    });
 
   } catch (error) {
-    console.error("Failed to start server:", error);
+    console.error("\n❌ FAILED TO START SERVER ❌");
+    console.error("----------------------------------");
+    console.error(error);
+    console.error("----------------------------------");
+    console.error("Server startup failed. Please check the error message above.");
     process.exit(1);
   }
 };

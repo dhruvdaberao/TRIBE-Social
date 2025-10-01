@@ -199,7 +199,6 @@
 
 
 
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Conversation, User, Message } from '../../types';
 import UserAvatar from '../common/UserAvatar';
@@ -253,11 +252,13 @@ export const MessageArea: React.FC<MessageAreaProps> = ({ conversation, messages
     setInputText(e.target.value);
     if (socket && otherParticipantId) {
       if (!typingTimeoutRef.current) {
-        socket.emit('typing', { roomId: `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`, userId: currentUser.id });
+        // FIX: Added 'userName' to the 'typing' event payload to match server expectations.
+        socket.emit('typing', { roomId: `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`, userId: currentUser.id, userName: currentUser.name });
       }
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
-        socket.emit('stopTyping', { roomId: `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`, userId: currentUser.id });
+        // FIX: Added 'userName' to the 'stopTyping' event payload to match server expectations.
+        socket.emit('stopTyping', { roomId: `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`, userId: currentUser.id, userName: currentUser.name });
         typingTimeoutRef.current = null;
       }, 2000);
     }
@@ -270,7 +271,8 @@ export const MessageArea: React.FC<MessageAreaProps> = ({ conversation, messages
       setInputText('');
       if (socket && otherParticipantId) {
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-        socket.emit('stopTyping', { roomId: `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`, userId: currentUser.id });
+        // FIX: Added 'userName' to the 'stopTyping' event payload to match server expectations.
+        socket.emit('stopTyping', { roomId: `dm-${[currentUser.id, otherParticipantId].sort().join('-')}`, userId: currentUser.id, userName: currentUser.name });
         typingTimeoutRef.current = null;
       }
     }

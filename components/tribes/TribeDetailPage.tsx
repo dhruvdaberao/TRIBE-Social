@@ -883,6 +883,7 @@
 
 
 
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Tribe, User, TribeMessage } from '../../types';
 import UserAvatar from '../common/UserAvatar';
@@ -953,11 +954,13 @@ const TribeDetailPage: React.FC<TribeDetailPageProps> = (props) => {
     setInputText(e.target.value);
     if (socket && isMember) {
       if (!typingTimeoutRef.current) {
-        socket.emit('typing', { roomId: `tribe-${tribe.id}`, userName: currentUser.name });
+        // FIX: Added 'userId' to the 'typing' event payload to match server expectations.
+        socket.emit('typing', { roomId: `tribe-${tribe.id}`, userName: currentUser.name, userId: currentUser.id });
       }
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
-        socket.emit('stopTyping', { roomId: `tribe-${tribe.id}`, userName: currentUser.name });
+        // FIX: Added 'userId' to the 'stopTyping' event payload to match server expectations.
+        socket.emit('stopTyping', { roomId: `tribe-${tribe.id}`, userName: currentUser.name, userId: currentUser.id });
         typingTimeoutRef.current = null;
       }, 2000);
     }
@@ -970,7 +973,8 @@ const TribeDetailPage: React.FC<TribeDetailPageProps> = (props) => {
       setInputText('');
       if (socket) {
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-        socket.emit('stopTyping', { roomId: `tribe-${tribe.id}`, userName: currentUser.name });
+        // FIX: Added 'userId' to the 'stopTyping' event payload to match server expectations.
+        socket.emit('stopTyping', { roomId: `tribe-${tribe.id}`, userName: currentUser.name, userId: currentUser.id });
         typingTimeoutRef.current = null;
       }
     }

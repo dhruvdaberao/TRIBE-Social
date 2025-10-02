@@ -232,30 +232,26 @@ const normalizeUser = (user: any): User | null => {
     };
 };
 
-// This function runs synchronously ONCE on component initialization.
-// It avoids the useEffect cycle which might be triggering the preamble error.
-const getInitialUser = (): User | null => {
-  const token = localStorage.getItem('token');
-  const userJson = localStorage.getItem('currentUser');
-  if (token && userJson) {
-    try {
-      return normalizeUser(JSON.parse(userJson));
-    } catch (error) {
-      console.error("Failed to parse stored user:", error);
-      // Clear inconsistent storage
-      localStorage.removeItem('token');
-      localStorage.removeItem('currentUser');
-      return null;
-    }
-  }
-  return null;
-};
-
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<User | null>(getInitialUser);
-  // Auth check is now synchronous, so we don't need a loading state for it.
-  const [isLoading, setIsLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Check for user session on initial load
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const userJson = localStorage.getItem('currentUser');
+    if (token && userJson) {
+      try {
+        setCurrentUser(normalizeUser(JSON.parse(userJson)));
+      } catch (error) {
+        console.error("Failed to parse stored user:", error);
+        // Clear inconsistent storage
+        localStorage.removeItem('token');
+        localStorage.removeItem('currentUser');
+      }
+    }
+    setIsLoading(false);
+  }, []);
 
   // Persist currentUser to localStorage whenever it changes
   useEffect(() => {
@@ -265,7 +261,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem('currentUser');
     }
   }, [currentUser]);
-
 
   const login = useCallback(async (email: string, password: string) => {
     const { data } = await api.login({ email, password });
